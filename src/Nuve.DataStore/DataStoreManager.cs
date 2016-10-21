@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
+
+#if NET452
 using Nuve.DataStore.Configuration;
+using System.Configuration;
+#endif
 
 namespace Nuve.DataStore
 {
@@ -31,6 +34,7 @@ namespace Nuve.DataStore
 
         private static Type GetType(string typeStr)
         {
+#if NET452
             var typeParts = typeStr.Split(',');
             var className = typeParts[0];
             var assembly = Assembly.GetExecutingAssembly();
@@ -40,6 +44,10 @@ namespace Nuve.DataStore
             }
 
             return assembly.GetType(className, true, false);
+#endif
+#if NETSTANDARD1_6
+            return Type.GetType(typeStr);
+#endif
         }
 
         /// <summary>
@@ -66,11 +74,11 @@ namespace Nuve.DataStore
                 }
                 catch (Exception e)
                 {
-                    throw new TypeLoadException(string.Format("'{0}' tipi yüklenemedi! Dll'in yüklendiğinden ve Assembly isminin doğruluğundan emin olun.", providerTypeString), e);
+                    throw new TypeLoadException(string.Format("Failed to load type '{0}'!", providerTypeString), e);
                 }
 
                 if (!typeof(IDataStoreProvider).IsAssignableFrom(providerType))
-                    throw new TypeLoadException(string.Format("Geçersiz tip. '{0}' tipi IDataStoreProvider olmalı.", providerTypeString));
+                    throw new TypeLoadException(string.Format("Invalid type '{0}'. '{0}' must implement IDataStoreProvider.", providerTypeString));
 
                 _providerTypes.Add(providerName, providerType);
             }
@@ -160,6 +168,7 @@ namespace Nuve.DataStore
 
         static DataStoreManager()
         {
+#if NET452
             var config = DataStoreConfigurationSection.GetConfiguration();
             if (config == null) return;
 
@@ -193,6 +202,7 @@ namespace Nuve.DataStore
                         continue;
                     CreateConnection(connection.Name, connection.ProviderName, connection.ConnectionString, connection.Namespace, connection.IsDefault);
                 }
+#endif
         }
 
         internal static void GetProvider(string connectionName, out IDataStoreProvider provider, out string rootNamespace)

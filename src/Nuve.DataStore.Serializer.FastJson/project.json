@@ -6,16 +6,15 @@
   "version": "1.0.0-*",
 
   "dependencies": {
-    "Aerospike.Client": "3.2.4",
-    "Nuve.DataStore": "*"
+    "NETStandard.Library": "1.6.0",
+    "fastJSON": "2.1.21"
   },
 
   "frameworks": {
-    //aerospike client doesnt support yet.
-    //"netstandard16": {
+    //fastJson doesnt support netstandard yet.
+    //"netstandard1.6": {
     //  "imports": "dnxcore50"
     //},
-    "net452": {
-    }
+    "net452": {}
   }
 }

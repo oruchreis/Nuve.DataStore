@@ -6,16 +6,14 @@
   "version": "1.0.0-*",
 
   "dependencies": {
-    "Aerospike.Client": "3.2.4",
+    "NETStandard.Library": "1.6.0",
+    "NetJSON": "1.2.1.4",
     "Nuve.DataStore": "*"
   },
 
   "frameworks": {
-    //aerospike client doesnt support yet.
-    //"netstandard16": {
-    //  "imports": "dnxcore50"
-    //},
-    "net452": {
+    "netstandard1.6": {
+      "imports": "dnxcore50"
     }
   }
 }

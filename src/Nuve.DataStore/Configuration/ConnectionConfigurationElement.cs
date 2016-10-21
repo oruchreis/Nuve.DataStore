@@ -1,3 +1,4 @@
+#if NET452
 using System.Configuration;
 
 namespace Nuve.DataStore.Configuration
@@ -70,3 +71,4 @@ namespace Nuve.DataStore.Configuration
         }
     }
 }
+#endif

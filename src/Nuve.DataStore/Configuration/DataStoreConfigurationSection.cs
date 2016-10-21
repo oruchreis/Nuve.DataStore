@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿#if NET452
+using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
 using System.Text;
@@ -55,3 +56,4 @@ namespace Nuve.DataStore.Configuration
         }
     }
 }
+#endif

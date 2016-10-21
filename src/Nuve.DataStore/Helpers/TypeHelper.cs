@@ -15,12 +15,17 @@ namespace Nuve.DataStore.Helpers
         /// <returns></returns>
         public static string GetOriginalName(this Type type)
         {
+#if NET452
             var typeName = type.FullName.Replace(type.Namespace + ".", "");
 
             var provider = System.CodeDom.Compiler.CodeDomProvider.CreateProvider("CSharp");
             var reference = new System.CodeDom.CodeTypeReference(typeName);
 
             return provider.GetTypeOutput(reference);
+#endif
+# if NETSTANDARD1_6
+            return type.FullName;
+#endif
         }
     }
 }

@@ -7,8 +7,8 @@
 
   <Import Project="$(VSToolsPath)\DotNet\Microsoft.DotNet.Props" Condition="'$(VSToolsPath)' != ''" />
   <PropertyGroup Label="Globals">
-    <ProjectGuid>8cb06b19-9e15-479d-b724-c0044f1a4569</ProjectGuid>
-    <RootNamespace>Nuve.DataStore.Aerospike</RootNamespace>
+    <ProjectGuid>16d51403-9a40-408b-9490-9a66faaa2abd</ProjectGuid>
+    <RootNamespace>Nuve.DataStore.Couchbase</RootNamespace>
     <BaseIntermediateOutputPath Condition="'$(BaseIntermediateOutputPath)'=='' ">.\obj</BaseIntermediateOutputPath>
     <OutputPath Condition="'$(OutputPath)'=='' ">.\bin\</OutputPath>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>

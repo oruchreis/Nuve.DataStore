@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("Nuve.Data.DataStore.Couchbase")]
+[assembly: AssemblyTitle("Nuve.DataStore.Serializer.NetJson")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("Nuve.Data.DataStore.Couchbase")]
-[assembly: AssemblyCopyright("Copyright ©  2014")]
+[assembly: AssemblyProduct("Nuve.DataStore.Serializer.NetJson")]
+[assembly: AssemblyCopyright("Copyright ©  2016")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -20,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("222bba80-4f83-4c60-ab6e-90882f5413e4")]
+[assembly: Guid("4ff0be18-cfcc-4662-a658-6e9f13610891")]
 
 // Version information for an assembly consists of the following four values:
 //

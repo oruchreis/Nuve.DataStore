@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Nuve.DataStore
 {
@@ -58,7 +54,7 @@ namespace Nuve.DataStore
 
         public string Serialize(object objectToSerialize)
         {
-            return (string) _serializeMethod.Invoke(null, new object[] {objectToSerialize, objectToSerialize.GetType()});
+            return (string) _serializeMethod.Invoke(null, new[] {objectToSerialize, objectToSerialize.GetType()});
         }
 
         public object Deserialize(string serializedObject, Type type)

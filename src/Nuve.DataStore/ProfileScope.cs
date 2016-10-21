@@ -13,6 +13,7 @@ namespace Nuve.DataStore
     {
         public ProfileScope(DataStoreBase store, string key, [CallerMemberName]string method = null)
         {
+#if NET452
             DataStoreProfiler = store.Profiler;
             var parent = InternalProfileManager.Current;
             ParentScope = parent;
@@ -33,6 +34,7 @@ namespace Nuve.DataStore
             }
 
             ProfilerContext = new ProfilerContext(globalContext, localContext);
+#endif
         }
 
         public ProfileScope ParentScope { get; set; }
@@ -42,6 +44,7 @@ namespace Nuve.DataStore
         private readonly ReaderWriterLockSlim _profileResultsLocker = new ReaderWriterLockSlim();
         public void AddProfileResults(IEnumerable<DataStoreProfileResult> results)
         {
+#if NET452
             _profileResultsLocker.EnterWriteLock();
             try
             {
@@ -51,6 +54,7 @@ namespace Nuve.DataStore
             {
                 _profileResultsLocker.ExitWriteLock();
             }
+#endif
         }
 
         internal bool Disposed { get; set; }
@@ -60,6 +64,7 @@ namespace Nuve.DataStore
         /// </summary>
         public virtual void Dispose()
         {
+#if NET452
             _profileResultsLocker.EnterReadLock();
             try
             {
@@ -81,9 +86,10 @@ namespace Nuve.DataStore
 
             InternalProfileManager.Current = ParentScope;
             Disposed = true;
+#endif
         }
     }
-
+#if NET452
     [Serializable]
     internal sealed class ProfileScopeWrapper : MarshalByRefObject
     {
@@ -95,5 +101,5 @@ namespace Nuve.DataStore
             Scope = scope;
         }
     }
-
+#endif
 }
