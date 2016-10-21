@@ -1,0 +1,91 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nuve.DataStore", "Nuve.DataStore.csproj", "{CA17B4F0-F4C8-4809-8067-EE5E80F82778}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nuve.DataStore.Serializer.MsgPack", "..\Nuve.DataStore.Serializer.MsgPack\Nuve.DataStore.Serializer.MsgPack.csproj", "{D9CDAF0C-D517-4415-908F-8617AB1CF17D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Providers", "Providers", "{9065C4CE-8900-4BC8-B5C7-A75AB025DDBD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Serializers", "Serializers", "{B24F8A5E-9082-4313-B2B4-3BEB6001D3D1}"
+EndProject
+Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "Nuve.DataStore.Aerospike", "..\Nuve.DataStore.Aerospike\Nuve.DataStore.Aerospike.xproj", "{112047F9-4E02-4159-8843-F35077460211}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nuve.Data.DataStore.Couchbase", "..\Nuve.DataStore.Couchbase\Nuve.Data.DataStore.Couchbase.csproj", "{F19BDF8A-9AB1-4761-AADD-93269B6F0E69}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nuve.DataStore.Redis", "..\Nuve.DataStore.Redis\Nuve.DataStore.Redis.csproj", "{DE9EC44B-FCD2-4571-9889-CCC4566A3A15}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nuve.DataStore.Serializer.Avro", "..\Nuve.DataStore.Serializer.Avro\Nuve.DataStore.Serializer.Avro.csproj", "{CB0668A8-CBB3-4C5D-907B-1898110EDF8E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nuve.DataStore.Serializer.FastJson", "..\Nuve.DataStore.Serializer.FastJson\Nuve.DataStore.Serializer.FastJson.csproj", "{CCBB3326-EA0A-47BD-9A11-26C30FB1EFD1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nuve.DataStore.Serializer.Jil", "..\Nuve.DataStore.Serializer.Jil\Nuve.DataStore.Serializer.Jil.csproj", "{0BC3E44E-5066-4D82-A25D-51E3854AF27D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nuve.DataStore.Serializer.JsonNet", "..\Nuve.DataStore.Serializer.JsonNet\Nuve.DataStore.Serializer.JsonNet.csproj", "{A14245E9-CE91-452C-991C-AF180CD23595}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nuve.DataStore.Serializer.NetJson", "..\Nuve.DataStore.Serializer.NetJson\Nuve.DataStore.Serializer.NetJson.csproj", "{7676780E-C4B7-4C5F-B579-BF082667EBFF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CA17B4F0-F4C8-4809-8067-EE5E80F82778}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA17B4F0-F4C8-4809-8067-EE5E80F82778}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA17B4F0-F4C8-4809-8067-EE5E80F82778}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA17B4F0-F4C8-4809-8067-EE5E80F82778}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D9CDAF0C-D517-4415-908F-8617AB1CF17D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D9CDAF0C-D517-4415-908F-8617AB1CF17D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D9CDAF0C-D517-4415-908F-8617AB1CF17D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D9CDAF0C-D517-4415-908F-8617AB1CF17D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{112047F9-4E02-4159-8843-F35077460211}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{112047F9-4E02-4159-8843-F35077460211}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{112047F9-4E02-4159-8843-F35077460211}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{112047F9-4E02-4159-8843-F35077460211}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F19BDF8A-9AB1-4761-AADD-93269B6F0E69}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F19BDF8A-9AB1-4761-AADD-93269B6F0E69}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F19BDF8A-9AB1-4761-AADD-93269B6F0E69}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F19BDF8A-9AB1-4761-AADD-93269B6F0E69}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DE9EC44B-FCD2-4571-9889-CCC4566A3A15}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DE9EC44B-FCD2-4571-9889-CCC4566A3A15}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DE9EC44B-FCD2-4571-9889-CCC4566A3A15}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DE9EC44B-FCD2-4571-9889-CCC4566A3A15}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CB0668A8-CBB3-4C5D-907B-1898110EDF8E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CB0668A8-CBB3-4C5D-907B-1898110EDF8E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CB0668A8-CBB3-4C5D-907B-1898110EDF8E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CB0668A8-CBB3-4C5D-907B-1898110EDF8E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CCBB3326-EA0A-47BD-9A11-26C30FB1EFD1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CCBB3326-EA0A-47BD-9A11-26C30FB1EFD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CCBB3326-EA0A-47BD-9A11-26C30FB1EFD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CCBB3326-EA0A-47BD-9A11-26C30FB1EFD1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0BC3E44E-5066-4D82-A25D-51E3854AF27D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0BC3E44E-5066-4D82-A25D-51E3854AF27D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0BC3E44E-5066-4D82-A25D-51E3854AF27D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0BC3E44E-5066-4D82-A25D-51E3854AF27D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A14245E9-CE91-452C-991C-AF180CD23595}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A14245E9-CE91-452C-991C-AF180CD23595}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A14245E9-CE91-452C-991C-AF180CD23595}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A14245E9-CE91-452C-991C-AF180CD23595}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7676780E-C4B7-4C5F-B579-BF082667EBFF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7676780E-C4B7-4C5F-B579-BF082667EBFF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7676780E-C4B7-4C5F-B579-BF082667EBFF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7676780E-C4B7-4C5F-B579-BF082667EBFF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{D9CDAF0C-D517-4415-908F-8617AB1CF17D} = {B24F8A5E-9082-4313-B2B4-3BEB6001D3D1}
+		{112047F9-4E02-4159-8843-F35077460211} = {9065C4CE-8900-4BC8-B5C7-A75AB025DDBD}
+		{F19BDF8A-9AB1-4761-AADD-93269B6F0E69} = {9065C4CE-8900-4BC8-B5C7-A75AB025DDBD}
+		{DE9EC44B-FCD2-4571-9889-CCC4566A3A15} = {9065C4CE-8900-4BC8-B5C7-A75AB025DDBD}
+		{CB0668A8-CBB3-4C5D-907B-1898110EDF8E} = {B24F8A5E-9082-4313-B2B4-3BEB6001D3D1}
+		{CCBB3326-EA0A-47BD-9A11-26C30FB1EFD1} = {B24F8A5E-9082-4313-B2B4-3BEB6001D3D1}
+		{0BC3E44E-5066-4D82-A25D-51E3854AF27D} = {B24F8A5E-9082-4313-B2B4-3BEB6001D3D1}
+		{A14245E9-CE91-452C-991C-AF180CD23595} = {B24F8A5E-9082-4313-B2B4-3BEB6001D3D1}
+		{7676780E-C4B7-4C5F-B579-BF082667EBFF} = {B24F8A5E-9082-4313-B2B4-3BEB6001D3D1}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,17 @@
+{
+  "version": "1.0.0-*",
+
+  "dependencies": {
+    "Aerospike.Client": "3.2.4"
+  },
+
+  "frameworks": {
+    "net46": {
+      "dependencies": {
+        "Nuve.DataStore": {
+          "target": "project"
+        }
+      }
+    }
+  }
+}
