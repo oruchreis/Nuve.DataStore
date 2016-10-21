@@ -54,12 +54,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Nuve.DataStore\Nuve.DataStore.csproj">
-      <Project>{ca17b4f0-f4c8-4809-8067-ee5e80f82778}</Project>
-      <Name>Nuve.DataStore</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="app.config" />
     <None Include="packages.config" />
   </ItemGroup>
