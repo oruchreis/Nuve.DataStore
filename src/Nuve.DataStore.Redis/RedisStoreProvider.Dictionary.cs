@@ -33,7 +33,7 @@ namespace Nuve.DataStore.Redis
         {
             return Profiler.Profile(() =>
                              {
-                                 var values = Db.HashGet(dictKey, Array.ConvertAll(itemKeys, item => (RedisValue) item));
+                                 var values = Db.HashGet(dictKey, itemKeys.Select(item => (RedisValue) item).ToArray());
                                  return itemKeys.Zip(values, (k, v) => new {k, v}).ToDictionary(kv => (string) kv.k, kv => (string) kv.v);
                              }, () => dictKey + "=>" + string.Join(",", itemKeys));
         }
@@ -42,7 +42,7 @@ namespace Nuve.DataStore.Redis
         {
             return await Profiler.Profile(async () =>
                                     {
-                                        var values = await Db.HashGetAsync(dictKey, Array.ConvertAll(itemKeys, item => (RedisValue) item));
+                                        var values = await Db.HashGetAsync(dictKey, itemKeys.Select(item => (RedisValue) item).ToArray());
                                         return itemKeys.Zip(values, (k, v) => new {k, v}).ToDictionary(kv => (string) kv.k, kv => (string) kv.v);
                                     }, () => dictKey + "=>" + string.Join(",", itemKeys));
         }
@@ -73,13 +73,13 @@ namespace Nuve.DataStore.Redis
 
         long IDictionaryStoreProvider.Remove(string dictKey, params string[] itemKeys)
         {
-            return Profiler.Profile(() => Db.HashDelete(dictKey, Array.ConvertAll(itemKeys, item => (RedisValue)item)),
+            return Profiler.Profile(() => Db.HashDelete(dictKey, itemKeys.Select(item => (RedisValue)item).ToArray()),
                 () => dictKey + "=>" + string.Join(",", itemKeys));
         }
 
         async Task<long> IDictionaryStoreProvider.RemoveAsync(string dictKey, params string[] itemKeys)
         {
-            return await Profiler.Profile(() => Db.HashDeleteAsync(dictKey, Array.ConvertAll(itemKeys, item => (RedisValue)item)),
+            return await Profiler.Profile(() => Db.HashDeleteAsync(dictKey, itemKeys.Select(item => (RedisValue)item).ToArray()),
                 () => dictKey + "=>" + string.Join(",", itemKeys));
         }
 

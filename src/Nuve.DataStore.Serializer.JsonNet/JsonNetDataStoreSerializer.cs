@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Reflection;
 using Newtonsoft.Json;
 
 namespace Nuve.DataStore.Serializer.JsonNet
@@ -20,7 +21,9 @@ namespace Nuve.DataStore.Serializer.JsonNet
                                       {
                                           TypeNameHandling = TypeNameHandling.Auto, //bunun ile $type etiketi eklenip polimorfik objelere izin veriliyor.
                                           ObjectCreationHandling = ObjectCreationHandling.Replace, // bu olmazsa ctor'daki default değerlere ekleme yapar.
+#if NET452
                                           ContractResolver = new NoConstructorCreationContractResolver()
+#endif
                                       };
         }
 
@@ -45,10 +48,19 @@ namespace Nuve.DataStore.Serializer.JsonNet
         {
             if (string.IsNullOrEmpty(serializedObject))
             {
+#if NET452
                 if (type.IsValueType)
                 {
                     return Activator.CreateInstance(type);
                 }
+#endif
+#if NETSTANDARD1_6
+                if (type.GetTypeInfo().IsValueType)
+                {
+                    return Activator.CreateInstance(type);
+                }
+#endif
+
                 return null;
             }
             return JsonConvert.DeserializeObject(serializedObject, type, _jsonSerializerSettings);

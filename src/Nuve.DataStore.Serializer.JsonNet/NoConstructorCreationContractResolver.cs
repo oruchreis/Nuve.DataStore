@@ -1,6 +1,8 @@
-﻿using System;
+﻿#if NET452
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
@@ -25,13 +27,15 @@ namespace Nuve.DataStore.Serializer.JsonNet
             // prepare contract using default resolver
             var objectContract = base.CreateObjectContract(objectType);
 
+            var typeInfo = objectContract.CreatedType.GetTypeInfo();
             // if type has constructor marked with JsonConstructor attribute or can't be instantiated, return default contract
-            if (objectContract.OverrideConstructor != null || objectContract.CreatedType.IsInterface || objectContract.CreatedType.IsAbstract)
+            if (objectContract.OverrideCreator != null || typeInfo.IsInterface || typeInfo.IsAbstract)
                 return objectContract;
 
-            // prepare function to check that specified constructor parameter corresponds to non writable property on a type
-            Func<JsonProperty, bool> isParameterForNonWritableProperty =
-                parameter =>
+            // if type has parameterized constructor and any of constructor parameters corresponds to non writable property, return default contract
+            // this is needed to handle special cases for types that can be initialized only via constructor, i.e. Tuple<>
+            if (objectContract.OverrideCreator != null
+                && objectContract.CreatorParameters.Any(parameter =>
                 {
                     var propertyForParameter = objectContract.Properties.FirstOrDefault(property => property.PropertyName == parameter.PropertyName);
 
@@ -39,12 +43,7 @@ namespace Nuve.DataStore.Serializer.JsonNet
                         return false;
 
                     return !propertyForParameter.Writable;
-                };
-
-            // if type has parameterized constructor and any of constructor parameters corresponds to non writable property, return default contract
-            // this is needed to handle special cases for types that can be initialized only via constructor, i.e. Tuple<>
-            if (objectContract.ParametrizedConstructor != null
-                && objectContract.ConstructorParameters.Any(parameter => isParameterForNonWritableProperty(parameter)))
+                }))
                 return objectContract;
 
             // override default creation method to create object without constructor call
@@ -55,3 +54,4 @@ namespace Nuve.DataStore.Serializer.JsonNet
         }
     }
 }
+#endif

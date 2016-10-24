@@ -22,7 +22,7 @@ namespace Nuve.DataStore.Redis
         {
             return Profiler.Profile(() =>
                                     {
-                                        var values = Db.StringGet(Array.ConvertAll(keys, item => (RedisKey) item));
+                                        var values = Db.StringGet(keys.Select(item => (RedisKey) item).ToArray());
                                         return keys.Zip(values, (k, v) => new {k, v}).ToDictionary(kv => kv.k, kv => (string) kv.v);
                                     }, string.Join(",", keys));
         }
@@ -31,7 +31,7 @@ namespace Nuve.DataStore.Redis
         {
             return await Profiler.Profile(async () =>
                                                 {
-                                                    var values = await Db.StringGetAsync(Array.ConvertAll(keys, item => (RedisKey) item));
+                                                    var values = await Db.StringGetAsync(keys.Select(item => (RedisKey) item).ToArray());
                                                     return keys.Zip(values, (k, v) => new {k, v}).ToDictionary(kv => kv.k, kv => (string) kv.v);
                                                 }, string.Join(",", keys));
         }

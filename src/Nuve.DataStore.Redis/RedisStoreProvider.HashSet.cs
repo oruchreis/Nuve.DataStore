@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 
@@ -19,12 +20,12 @@ namespace Nuve.DataStore.Redis
 
         long IHashSetStoreProvider.Add(string hashSetKey, params string[] values)
         {
-            return Profiler.Profile(() => Db.SetAdd(hashSetKey, Array.ConvertAll(values, item => (RedisValue) item)), hashSetKey);
+            return Profiler.Profile(() => Db.SetAdd(hashSetKey, values.Select(item => (RedisValue) item).ToArray()), hashSetKey);
         }
 
         async Task<long> IHashSetStoreProvider.AddAsync(string hashSetKey, params string[] values)
         {
-            return await Profiler.Profile(() => Db.SetAddAsync(hashSetKey, Array.ConvertAll(values, item => (RedisValue) item)), hashSetKey);
+            return await Profiler.Profile(() => Db.SetAddAsync(hashSetKey, values.Select(item => (RedisValue) item).ToArray()), hashSetKey);
         }
 
         long IHashSetStoreProvider.Count(string hashSetKey)
@@ -42,7 +43,7 @@ namespace Nuve.DataStore.Redis
             return Profiler.Profile(() =>
                              {
                                  var keys = new List<RedisKey> {hashSetKey};
-                                 keys.AddRange(Array.ConvertAll(compareHashSetKeys, item => (RedisKey) item));
+                                 keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
                                  return new HashSet<string>((Db.SetCombine(SetOperation.Difference, keys.ToArray())).ToStringArray());
                              }, () => hashSetKey + "|" + string.Join(",", compareHashSetKeys));
         }
@@ -52,7 +53,7 @@ namespace Nuve.DataStore.Redis
             return await Profiler.Profile(async () =>
                                     {
                                         var keys = new List<RedisKey> {hashSetKey};
-                                        keys.AddRange(Array.ConvertAll(compareHashSetKeys, item => (RedisKey) item));
+                                        keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
                                         return new HashSet<string>((await Db.SetCombineAsync(SetOperation.Difference, keys.ToArray())).ToStringArray());
                                     }, () => hashSetKey + "|" + string.Join(",", compareHashSetKeys));
         }
@@ -62,7 +63,7 @@ namespace Nuve.DataStore.Redis
             return Profiler.Profile(() =>
                                     {
                                         var keys = new List<RedisKey> {hashSetKey};
-                                        keys.AddRange(Array.ConvertAll(compareHashSetKeys, item => (RedisKey) item));
+                                        keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
                                         return Db.SetCombineAndStore(SetOperation.Difference, newHashSetKey, keys.ToArray());
                                     }, () => hashSetKey + "|" + newHashSetKey + "|" + string.Join(",", compareHashSetKeys));
         }
@@ -72,7 +73,7 @@ namespace Nuve.DataStore.Redis
             return await Profiler.Profile(async () =>
                                                 {
                                                     var keys = new List<RedisKey> {hashSetKey};
-                                                    keys.AddRange(Array.ConvertAll(compareHashSetKeys, item => (RedisKey) item));
+                                                    keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
                                                     return await Db.SetCombineAndStoreAsync(SetOperation.Difference, newHashSetKey, keys.ToArray());
                                                 }, () => hashSetKey + "|" + newHashSetKey + "|" + string.Join(",", compareHashSetKeys));
         }
@@ -82,7 +83,7 @@ namespace Nuve.DataStore.Redis
             return Profiler.Profile(() =>
                                     {
                                         var keys = new List<RedisKey> {hashSetKey};
-                                        keys.AddRange(Array.ConvertAll(compareHashSetKeys, item => (RedisKey) item));
+                                        keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
                                         return new HashSet<string>((Db.SetCombine(SetOperation.Intersect, keys.ToArray())).ToStringArray());
                                     }, () => hashSetKey + "|" + string.Join(",", compareHashSetKeys));
         }
@@ -92,7 +93,7 @@ namespace Nuve.DataStore.Redis
             return await Profiler.Profile(async () =>
                                                 {
                                                     var keys = new List<RedisKey> {hashSetKey};
-                                                    keys.AddRange(Array.ConvertAll(compareHashSetKeys, item => (RedisKey) item));
+                                                    keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
                                                     return new HashSet<string>((await Db.SetCombineAsync(SetOperation.Intersect, keys.ToArray())).ToStringArray());
                                                 }, () => hashSetKey + "|" + string.Join(",", compareHashSetKeys));
         }
@@ -102,7 +103,7 @@ namespace Nuve.DataStore.Redis
             return Profiler.Profile(() =>
                                     {
                                         var keys = new List<RedisKey> {hashSetKey};
-                                        keys.AddRange(Array.ConvertAll(compareHashSetKeys, item => (RedisKey) item));
+                                        keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
                                         return Db.SetCombineAndStore(SetOperation.Intersect, newHashSetKey, keys.ToArray());
                                     }, () => hashSetKey + "|" + newHashSetKey + "|" + string.Join(",", compareHashSetKeys));
         }
@@ -112,7 +113,7 @@ namespace Nuve.DataStore.Redis
             return await Profiler.Profile(async () =>
                                                 {
                                                     var keys = new List<RedisKey> {hashSetKey};
-                                                    keys.AddRange(Array.ConvertAll(compareHashSetKeys, item => (RedisKey) item));
+                                                    keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
                                                     return await Db.SetCombineAndStoreAsync(SetOperation.Intersect, newHashSetKey, keys.ToArray());
                                                 }, () => hashSetKey + "|" + newHashSetKey + "|" + string.Join(",", compareHashSetKeys));
         }
@@ -120,28 +121,28 @@ namespace Nuve.DataStore.Redis
         HashSet<string> IHashSetStoreProvider.Union(params string[] hashSetKeys)
         {
             return Profiler.Profile(() => new HashSet<string>((Db.SetCombine(SetOperation.Union,
-                Array.ConvertAll(hashSetKeys, item => (RedisKey) item))).ToStringArray()),
+                hashSetKeys.Select(item => (RedisKey) item).ToArray())).ToStringArray()),
                 () => string.Join(",", hashSetKeys));
         }
 
         async Task<HashSet<string>> IHashSetStoreProvider.UnionAsync(params string[] hashSetKeys)
         {
             return await Profiler.Profile(async () => new HashSet<string>((await Db.SetCombineAsync(SetOperation.Union, 
-                Array.ConvertAll(hashSetKeys, item => (RedisKey) item))).ToStringArray()),
+                hashSetKeys.Select(item => (RedisKey) item).ToArray())).ToStringArray()),
                 () => string.Join(",", hashSetKeys));
         }
 
         long IHashSetStoreProvider.UnionToNewSet(string newHashSetKey, params string[] hashSetKeys)
         {
             return Profiler.Profile(() => Db.SetCombineAndStore(SetOperation.Union, newHashSetKey, 
-                Array.ConvertAll(hashSetKeys, item => (RedisKey) item)),
+                hashSetKeys.Select(item => (RedisKey) item).ToArray()),
                 ()=> newHashSetKey + "|" + string.Join(",", hashSetKeys));
         }
 
         async Task<long> IHashSetStoreProvider.UnionToNewSetAsync(string newHashSetKey, params string[] hashSetKeys)
         {
            return await Profiler.Profile(() => Db.SetCombineAndStoreAsync(SetOperation.Union, newHashSetKey, 
-               Array.ConvertAll(hashSetKeys, item => (RedisKey) item)),
+               hashSetKeys.Select(item => (RedisKey) item).ToArray()),
                () => newHashSetKey + "|" + string.Join(",", hashSetKeys));
         }
 
@@ -177,12 +178,12 @@ namespace Nuve.DataStore.Redis
 
         long IHashSetStoreProvider.Remove(string hashSetKey, params string[] values)
         {
-            return Profiler.Profile(() =>Db.SetRemove(hashSetKey, Array.ConvertAll(values, item => (RedisValue) item)), hashSetKey);
+            return Profiler.Profile(() =>Db.SetRemove(hashSetKey, values.Select(item => (RedisValue) item).ToArray()), hashSetKey);
         }
 
         async Task<long> IHashSetStoreProvider.RemoveAsync(string hashSetKey, params string[] values)
         {
-            return await Profiler.Profile(() => Db.SetRemoveAsync(hashSetKey, Array.ConvertAll(values, item => (RedisValue) item)), hashSetKey);
+            return await Profiler.Profile(() => Db.SetRemoveAsync(hashSetKey, values.Select(item => (RedisValue) item).ToArray()), hashSetKey);
         }
     }
 }

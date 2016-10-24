@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using StackExchange.Redis;
+using System.Linq;
 
 namespace Nuve.DataStore.Redis
 {
@@ -49,22 +50,22 @@ namespace Nuve.DataStore.Redis
 
         long ILinkedListStoreProvider.AddFirst(string listKey, params string[] value)
         {
-            return Profiler.Profile(() => Db.ListLeftPush(listKey, Array.ConvertAll(value, item => (RedisValue) item)), listKey);
+            return Profiler.Profile(() => Db.ListLeftPush(listKey, value.Select(item => (RedisValue) item).ToArray()), listKey);
         }
 
         async Task<long> ILinkedListStoreProvider.AddFirstAsync(string listKey, params string[] value)
         {
-            return await Profiler.Profile(() => Db.ListLeftPushAsync(listKey, Array.ConvertAll(value, item => (RedisValue) item)), listKey);
+            return await Profiler.Profile(() => Db.ListLeftPushAsync(listKey, value.Select(item => (RedisValue) item).ToArray()), listKey);
         }
 
         long ILinkedListStoreProvider.AddLast(string listKey, params string[] value)
         {
-            return Profiler.Profile(() => Db.ListRightPush(listKey, Array.ConvertAll(value, item => (RedisValue) item)), listKey);
+            return Profiler.Profile(() => Db.ListRightPush(listKey, value.Select(item => (RedisValue) item).ToArray()), listKey);
         }
 
         async Task<long> ILinkedListStoreProvider.AddLastAsync(string listKey, params string[] value)
         {
-            return await Profiler.Profile(() => Db.ListRightPushAsync(listKey, Array.ConvertAll(value, item => (RedisValue) item)), listKey);
+            return await Profiler.Profile(() => Db.ListRightPushAsync(listKey, value.Select(item => (RedisValue) item).ToArray()), listKey);
         }
 
         long ILinkedListStoreProvider.AddAfter(string listKey, string pivot, string value)
