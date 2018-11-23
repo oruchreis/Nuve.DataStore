@@ -13,7 +13,7 @@ namespace Nuve.DataStore
     {
         public ProfileScope(DataStoreBase store, string key, [CallerMemberName]string method = null)
         {
-#if NET452
+#if NET47
             DataStoreProfiler = store.Profiler;
             var parent = InternalProfileManager.Current;
             ParentScope = parent;
@@ -44,7 +44,7 @@ namespace Nuve.DataStore
         private readonly ReaderWriterLockSlim _profileResultsLocker = new ReaderWriterLockSlim();
         public void AddProfileResults(IEnumerable<DataStoreProfileResult> results)
         {
-#if NET452
+#if NET47
             _profileResultsLocker.EnterWriteLock();
             try
             {
@@ -64,7 +64,7 @@ namespace Nuve.DataStore
         /// </summary>
         public virtual void Dispose()
         {
-#if NET452
+#if NET47
             _profileResultsLocker.EnterReadLock();
             try
             {
@@ -89,7 +89,7 @@ namespace Nuve.DataStore
 #endif
         }
     }
-#if NET452
+#if NET47
     [Serializable]
     internal sealed class ProfileScopeWrapper : MarshalByRefObject
     {

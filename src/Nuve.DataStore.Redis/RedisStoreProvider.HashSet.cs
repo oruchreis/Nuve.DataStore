@@ -10,180 +10,152 @@ namespace Nuve.DataStore.Redis
     {
         bool IHashSetStoreProvider.IsExists(string hashSetKey)
         {
-            return Profiler.Profile(() =>Db.KeyExists(hashSetKey), hashSetKey);
+            return Db.KeyExists(hashSetKey);
         }
 
         async Task<bool> IHashSetStoreProvider.IsExistsAsync(string hashSetKey)
         {
-            return await Profiler.Profile(() => Db.KeyExistsAsync(hashSetKey), hashSetKey);
+            return await Db.KeyExistsAsync(hashSetKey);
         }
 
-        long IHashSetStoreProvider.Add(string hashSetKey, params string[] values)
+        long IHashSetStoreProvider.Add(string hashSetKey, params byte[][] values)
         {
-            return Profiler.Profile(() => Db.SetAdd(hashSetKey, values.Select(item => (RedisValue) item).ToArray()), hashSetKey);
+            return Db.SetAdd(hashSetKey, values.Select(item => (RedisValue)item).ToArray());
         }
 
-        async Task<long> IHashSetStoreProvider.AddAsync(string hashSetKey, params string[] values)
+        async Task<long> IHashSetStoreProvider.AddAsync(string hashSetKey, params byte[][] values)
         {
-            return await Profiler.Profile(() => Db.SetAddAsync(hashSetKey, values.Select(item => (RedisValue) item).ToArray()), hashSetKey);
+            return await Db.SetAddAsync(hashSetKey, values.Select(item => (RedisValue)item).ToArray());
         }
 
         long IHashSetStoreProvider.Count(string hashSetKey)
         {
-            return Profiler.Profile(() => Db.SetLength(hashSetKey), hashSetKey);
+            return Db.SetLength(hashSetKey);
         }
 
         async Task<long> IHashSetStoreProvider.CountAsync(string hashSetKey)
         {
-            return await Profiler.Profile(() => Db.SetLengthAsync(hashSetKey), hashSetKey);
+            return await Db.SetLengthAsync(hashSetKey);
         }
 
-        HashSet<string> IHashSetStoreProvider.Difference(string hashSetKey, params string[] compareHashSetKeys)
+        HashSet<byte[]> IHashSetStoreProvider.Difference(string hashSetKey, params string[] compareHashSetKeys)
         {
-            return Profiler.Profile(() =>
-                             {
-                                 var keys = new List<RedisKey> {hashSetKey};
-                                 keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
-                                 return new HashSet<string>((Db.SetCombine(SetOperation.Difference, keys.ToArray())).ToStringArray());
-                             }, () => hashSetKey + "|" + string.Join(",", compareHashSetKeys));
+            var keys = new List<RedisKey> { hashSetKey };
+            keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
+            return new HashSet<byte[]>((Db.SetCombine(SetOperation.Difference, keys.ToArray())).Select(rv => (byte[])rv));
         }
 
-        async Task<HashSet<string>> IHashSetStoreProvider.DifferenceAsync(string hashSetKey, params string[] compareHashSetKeys)
+        async Task<HashSet<byte[]>> IHashSetStoreProvider.DifferenceAsync(string hashSetKey, params string[] compareHashSetKeys)
         {
-            return await Profiler.Profile(async () =>
-                                    {
-                                        var keys = new List<RedisKey> {hashSetKey};
-                                        keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
-                                        return new HashSet<string>((await Db.SetCombineAsync(SetOperation.Difference, keys.ToArray())).ToStringArray());
-                                    }, () => hashSetKey + "|" + string.Join(",", compareHashSetKeys));
+            var keys = new List<RedisKey> { hashSetKey };
+            keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
+            return new HashSet<byte[]>((await Db.SetCombineAsync(SetOperation.Difference, keys.ToArray())).Select(rv => (byte[])rv));
         }
 
         long IHashSetStoreProvider.DifferenceToNewSet(string hashSetKey, string newHashSetKey, params string[] compareHashSetKeys)
         {
-            return Profiler.Profile(() =>
-                                    {
-                                        var keys = new List<RedisKey> {hashSetKey};
-                                        keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
-                                        return Db.SetCombineAndStore(SetOperation.Difference, newHashSetKey, keys.ToArray());
-                                    }, () => hashSetKey + "|" + newHashSetKey + "|" + string.Join(",", compareHashSetKeys));
+            var keys = new List<RedisKey> { hashSetKey };
+            keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
+            return Db.SetCombineAndStore(SetOperation.Difference, newHashSetKey, keys.ToArray());
         }
 
         async Task<long> IHashSetStoreProvider.DifferenceToNewSetAsync(string hashSetKey, string newHashSetKey, params string[] compareHashSetKeys)
         {
-            return await Profiler.Profile(async () =>
-                                                {
-                                                    var keys = new List<RedisKey> {hashSetKey};
-                                                    keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
-                                                    return await Db.SetCombineAndStoreAsync(SetOperation.Difference, newHashSetKey, keys.ToArray());
-                                                }, () => hashSetKey + "|" + newHashSetKey + "|" + string.Join(",", compareHashSetKeys));
+            var keys = new List<RedisKey> { hashSetKey };
+            keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
+            return await Db.SetCombineAndStoreAsync(SetOperation.Difference, newHashSetKey, keys.ToArray());
         }
 
-        HashSet<string> IHashSetStoreProvider.Intersection(string hashSetKey, params string[] compareHashSetKeys)
+        HashSet<byte[]> IHashSetStoreProvider.Intersection(string hashSetKey, params string[] compareHashSetKeys)
         {
-            return Profiler.Profile(() =>
-                                    {
-                                        var keys = new List<RedisKey> {hashSetKey};
-                                        keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
-                                        return new HashSet<string>((Db.SetCombine(SetOperation.Intersect, keys.ToArray())).ToStringArray());
-                                    }, () => hashSetKey + "|" + string.Join(",", compareHashSetKeys));
+            var keys = new List<RedisKey> { hashSetKey };
+            keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
+            return new HashSet<byte[]>((Db.SetCombine(SetOperation.Intersect, keys.ToArray())).Select(rv => (byte[])rv));
         }
 
-        async Task<HashSet<string>> IHashSetStoreProvider.IntersectionAsync(string hashSetKey, params string[] compareHashSetKeys)
+        async Task<HashSet<byte[]>> IHashSetStoreProvider.IntersectionAsync(string hashSetKey, params string[] compareHashSetKeys)
         {
-            return await Profiler.Profile(async () =>
-                                                {
-                                                    var keys = new List<RedisKey> {hashSetKey};
-                                                    keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
-                                                    return new HashSet<string>((await Db.SetCombineAsync(SetOperation.Intersect, keys.ToArray())).ToStringArray());
-                                                }, () => hashSetKey + "|" + string.Join(",", compareHashSetKeys));
+            var keys = new List<RedisKey> { hashSetKey };
+            keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
+            return new HashSet<byte[]>((await Db.SetCombineAsync(SetOperation.Intersect, keys.ToArray())).Select(rv => (byte[])rv));
         }
 
         long IHashSetStoreProvider.IntersectionToNewSet(string hashSetKey, string newHashSetKey, params string[] compareHashSetKeys)
         {
-            return Profiler.Profile(() =>
-                                    {
-                                        var keys = new List<RedisKey> {hashSetKey};
-                                        keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
-                                        return Db.SetCombineAndStore(SetOperation.Intersect, newHashSetKey, keys.ToArray());
-                                    }, () => hashSetKey + "|" + newHashSetKey + "|" + string.Join(",", compareHashSetKeys));
+            var keys = new List<RedisKey> { hashSetKey };
+            keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
+            return Db.SetCombineAndStore(SetOperation.Intersect, newHashSetKey, keys.ToArray());
         }
 
         async Task<long> IHashSetStoreProvider.IntersectionToNewSetAsync(string hashSetKey, string newHashSetKey, params string[] compareHashSetKeys)
         {
-            return await Profiler.Profile(async () =>
-                                                {
-                                                    var keys = new List<RedisKey> {hashSetKey};
-                                                    keys.AddRange(compareHashSetKeys.Select(item => (RedisKey) item));
-                                                    return await Db.SetCombineAndStoreAsync(SetOperation.Intersect, newHashSetKey, keys.ToArray());
-                                                }, () => hashSetKey + "|" + newHashSetKey + "|" + string.Join(",", compareHashSetKeys));
+            var keys = new List<RedisKey> { hashSetKey };
+            keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
+            return await Db.SetCombineAndStoreAsync(SetOperation.Intersect, newHashSetKey, keys.ToArray());
         }
 
-        HashSet<string> IHashSetStoreProvider.Union(params string[] hashSetKeys)
+        HashSet<byte[]> IHashSetStoreProvider.Union(params string[] hashSetKeys)
         {
-            return Profiler.Profile(() => new HashSet<string>((Db.SetCombine(SetOperation.Union,
-                hashSetKeys.Select(item => (RedisKey) item).ToArray())).ToStringArray()),
-                () => string.Join(",", hashSetKeys));
+            return new HashSet<byte[]>((Db.SetCombine(SetOperation.Union,
+                hashSetKeys.Select(item => (RedisKey)item).ToArray())).Select(rv => (byte[])rv));
         }
 
-        async Task<HashSet<string>> IHashSetStoreProvider.UnionAsync(params string[] hashSetKeys)
+        async Task<HashSet<byte[]>> IHashSetStoreProvider.UnionAsync(params string[] hashSetKeys)
         {
-            return await Profiler.Profile(async () => new HashSet<string>((await Db.SetCombineAsync(SetOperation.Union, 
-                hashSetKeys.Select(item => (RedisKey) item).ToArray())).ToStringArray()),
-                () => string.Join(",", hashSetKeys));
+            return new HashSet<byte[]>((await Db.SetCombineAsync(SetOperation.Union,
+                hashSetKeys.Select(item => (RedisKey)item).ToArray())).Select(rv => (byte[])rv));
         }
 
         long IHashSetStoreProvider.UnionToNewSet(string newHashSetKey, params string[] hashSetKeys)
         {
-            return Profiler.Profile(() => Db.SetCombineAndStore(SetOperation.Union, newHashSetKey, 
-                hashSetKeys.Select(item => (RedisKey) item).ToArray()),
-                ()=> newHashSetKey + "|" + string.Join(",", hashSetKeys));
+            return Db.SetCombineAndStore(SetOperation.Union, newHashSetKey,
+                hashSetKeys.Select(item => (RedisKey)item).ToArray());
         }
 
         async Task<long> IHashSetStoreProvider.UnionToNewSetAsync(string newHashSetKey, params string[] hashSetKeys)
         {
-           return await Profiler.Profile(() => Db.SetCombineAndStoreAsync(SetOperation.Union, newHashSetKey, 
-               hashSetKeys.Select(item => (RedisKey) item).ToArray()),
-               () => newHashSetKey + "|" + string.Join(",", hashSetKeys));
+            return await Db.SetCombineAndStoreAsync(SetOperation.Union, newHashSetKey,
+                hashSetKeys.Select(item => (RedisKey)item).ToArray());
         }
 
-        bool IHashSetStoreProvider.Contains(string hashSetKey, string value)
+        bool IHashSetStoreProvider.Contains(string hashSetKey, byte[] value)
         {
-            return Profiler.Profile(() =>Db.SetContains(hashSetKey, value), hashSetKey);
+            return Db.SetContains(hashSetKey, value);
         }
 
-        async Task<bool> IHashSetStoreProvider.ContainsAsync(string hashSetKey, string value)
+        async Task<bool> IHashSetStoreProvider.ContainsAsync(string hashSetKey, byte[] value)
         {
-            return await Profiler.Profile(() =>Db.SetContainsAsync(hashSetKey, value), hashSetKey);
+            return await Db.SetContainsAsync(hashSetKey, value);
         }
 
-        HashSet<string> IHashSetStoreProvider.GetHashSet(string hashSetKey)
+        HashSet<byte[]> IHashSetStoreProvider.GetHashSet(string hashSetKey)
         {
-            return Profiler.Profile(() => new HashSet<string>((Db.SetMembers(hashSetKey)).ToStringArray()), hashSetKey);
+            return new HashSet<byte[]>((Db.SetMembers(hashSetKey)).Select(rv => (byte[])rv));
         }
 
-        async Task<HashSet<string>> IHashSetStoreProvider.GetHashSetAsync(string hashSetKey)
+        async Task<HashSet<byte[]>> IHashSetStoreProvider.GetHashSetAsync(string hashSetKey)
         {
-            return await Profiler.Profile(async () =>new HashSet<string>((await Db.SetMembersAsync(hashSetKey)).ToStringArray()), hashSetKey);
+            return new HashSet<byte[]>((await Db.SetMembersAsync(hashSetKey)).Select(rv => (byte[])rv));
         }
 
-        bool IHashSetStoreProvider.MoveValue(string hashSetKey, string destHashSetKey, string value)
+        bool IHashSetStoreProvider.MoveValue(string hashSetKey, string destHashSetKey, byte[] value)
         {
-            return Profiler.Profile(() => Db.SetMove(hashSetKey, destHashSetKey, value), () => hashSetKey + "|" + destHashSetKey);
+            return Db.SetMove(hashSetKey, destHashSetKey, value);
         }
 
-        async Task<bool> IHashSetStoreProvider.MoveValueAsync(string hashSetKey, string destHashSetKey, string value)
+        async Task<bool> IHashSetStoreProvider.MoveValueAsync(string hashSetKey, string destHashSetKey, byte[] value)
         {
-            return await Profiler.Profile(() => Db.SetMoveAsync(hashSetKey, destHashSetKey, value), () => hashSetKey + "|" + destHashSetKey);
+            return await Db.SetMoveAsync(hashSetKey, destHashSetKey, value);
         }
 
-        long IHashSetStoreProvider.Remove(string hashSetKey, params string[] values)
+        long IHashSetStoreProvider.Remove(string hashSetKey, params byte[][] values)
         {
-            return Profiler.Profile(() =>Db.SetRemove(hashSetKey, values.Select(item => (RedisValue) item).ToArray()), hashSetKey);
+            return Db.SetRemove(hashSetKey, values.Select(item => (RedisValue)item).ToArray());
         }
 
-        async Task<long> IHashSetStoreProvider.RemoveAsync(string hashSetKey, params string[] values)
+        async Task<long> IHashSetStoreProvider.RemoveAsync(string hashSetKey, params byte[][] values)
         {
-            return await Profiler.Profile(() => Db.SetRemoveAsync(hashSetKey, values.Select(item => (RedisValue) item).ToArray()), hashSetKey);
+            return await Db.SetRemoveAsync(hashSetKey, values.Select(item => (RedisValue)item).ToArray());
         }
     }
 }

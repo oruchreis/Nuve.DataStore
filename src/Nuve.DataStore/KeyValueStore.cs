@@ -16,7 +16,7 @@ namespace Nuve.DataStore
     public class KeyValueStore: DataStoreBase
     {
         private readonly IKeyValueStoreProvider _keyValueStoreProvider;        
-        private static readonly string _typeName = typeof(KeyValueStore).GetOriginalName();
+        private static readonly string _typeName = typeof(KeyValueStore).GetFriendlyName();
 
         /// <summary>
         /// Key-Value değer tutan store yapısı. 
@@ -30,8 +30,9 @@ namespace Nuve.DataStore
         /// <param name="profiler">Özel olarak sadece bu data store'un metodlarını profile etmek için kullanılır. 
         /// Setlense de setlenmese de <see cref="DataStoreManager"/>'a kayıtlı global profiler kullanılır.</param>
         public KeyValueStore(string connectionName = null, TimeSpan? defaultExpire = null, bool autoPing = false,
-            string namespaceSeperator = null, string overrideRootNamespace = null, IDataStoreSerializer serializer = null, IDataStoreProfiler profiler = null):
-            base(connectionName, defaultExpire, autoPing, namespaceSeperator, overrideRootNamespace, serializer, profiler)
+            string namespaceSeperator = null, string overrideRootNamespace = null, IDataStoreSerializer serializer = null, IDataStoreProfiler profiler = null,
+            int? compressBiggerThan = null) :
+            base(connectionName, defaultExpire, autoPing, namespaceSeperator, overrideRootNamespace, serializer, profiler, compressBiggerThan)
         {
             _keyValueStoreProvider = Provider as IKeyValueStoreProvider;
             if (_keyValueStoreProvider == null)
@@ -601,6 +602,24 @@ namespace Nuve.DataStore
             using (new ProfileScope(this, lockerKey))
             {
                 Provider.Lock(JoinWithRootNamespace(lockerKey), waitTimeout, lockerExpire, action, skipWhenTimeout, throwWhenTimeout);
+            }
+        }
+
+        /// <summary>
+        /// Bir key kilitli değilse <paramref name="lockerExpire"/> süresi kadar kilitler veya kilitli ise <paramref name="waitTimeout"/> kadar kilidin açılmasını bekler. 
+        /// Sürü bitimininde işlemi gerçekleştirmeden devam eder.
+        /// </summary>
+        /// <param name="lockerKey"></param>
+        /// <param name="waitTimeout"></param>
+        /// <param name="lockerExpire"></param>
+        /// <param name="actionAsync"></param>
+        /// <param name="skipWhenTimeout">Timeout olduğunda çalıştırılacak olan aksiyon geçilsin mi?</param>
+        /// <param name="throwWhenTimeout">Timeout olduğunda <see cref="TimeoutException"/> fırlatılsın mı?</param>
+        public async Task LockAsync(string lockerKey, TimeSpan waitTimeout, TimeSpan lockerExpire, Func<Task> actionAsync, bool skipWhenTimeout = true, bool throwWhenTimeout = false)
+        {
+            using (new ProfileScope(this, lockerKey))
+            {
+                await Provider.LockAsync(JoinWithRootNamespace(lockerKey), waitTimeout, lockerExpire, actionAsync, skipWhenTimeout, throwWhenTimeout);
             }
         }
     }

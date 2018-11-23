@@ -8,145 +8,139 @@ namespace Nuve.DataStore.Redis
 {
     public partial class RedisStoreProvider : IKeyValueStoreProvider
     {
-        string IKeyValueStoreProvider.Get(string key)
+        byte[] IKeyValueStoreProvider.Get(string key)
         {
-            return Profiler.Profile(()=> Db.StringGet(key), key);
+            return Db.StringGet(key);
         }
 
-        async Task<string> IKeyValueStoreProvider.GetAsync(string key)
+        async Task<byte[]> IKeyValueStoreProvider.GetAsync(string key)
         {
-            return await Profiler.Profile(() => Db.StringGetAsync(key), key);
+            return await Db.StringGetAsync(key);
         }
 
-        IDictionary<string, string> IKeyValueStoreProvider.GetAll(params string[] keys)
+        IDictionary<string, byte[]> IKeyValueStoreProvider.GetAll(params string[] keys)
         {
-            return Profiler.Profile(() =>
-                                    {
-                                        var values = Db.StringGet(keys.Select(item => (RedisKey) item).ToArray());
-                                        return keys.Zip(values, (k, v) => new {k, v}).ToDictionary(kv => kv.k, kv => (string) kv.v);
-                                    }, string.Join(",", keys));
+            var values = Db.StringGet(keys.Select(item => (RedisKey)item).ToArray());
+            return keys.Zip(values, (k, v) => new { k, v }).ToDictionary(kv => kv.k, kv => (byte[])kv.v);
         }
 
-        async Task<IDictionary<string, string>> IKeyValueStoreProvider.GetAllAsync(params string[] keys)
+        async Task<IDictionary<string, byte[]>> IKeyValueStoreProvider.GetAllAsync(params string[] keys)
         {
-            return await Profiler.Profile(async () =>
-                                                {
-                                                    var values = await Db.StringGetAsync(keys.Select(item => (RedisKey) item).ToArray());
-                                                    return keys.Zip(values, (k, v) => new {k, v}).ToDictionary(kv => kv.k, kv => (string) kv.v);
-                                                }, string.Join(",", keys));
+            var values = await Db.StringGetAsync(keys.Select(item => (RedisKey)item).ToArray());
+            return keys.Zip(values, (k, v) => new { k, v }).ToDictionary(kv => kv.k, kv => (byte[])kv.v);
         }
 
-        bool IKeyValueStoreProvider.Set(string key, string entity, bool overwrite)
+        bool IKeyValueStoreProvider.Set(string key, byte[] entity, bool overwrite)
         {
-            return Profiler.Profile(() => Db.StringSet(key, entity, when: overwrite ? When.Always : When.NotExists), key);
+            return Db.StringSet(key, entity, when: overwrite ? When.Always : When.NotExists);
         }
 
-        async Task<bool> IKeyValueStoreProvider.SetAsync(string key, string entity, bool overwrite)
+        async Task<bool> IKeyValueStoreProvider.SetAsync(string key, byte[] entity, bool overwrite)
         {
-            return await Profiler.Profile(() => Db.StringSetAsync(key, entity, when: overwrite ? When.Always : When.NotExists), key);
+            return await Db.StringSetAsync(key, entity, when: overwrite ? When.Always : When.NotExists);
         }
 
-        bool IKeyValueStoreProvider.SetAll(IDictionary<string, string> keyValues, bool overwrite)
+        bool IKeyValueStoreProvider.SetAll(IDictionary<string, byte[]> keyValues, bool overwrite)
         {
-            return Profiler.Profile(() => Db.StringSet(keyValues.Select(kv => new KeyValuePair<RedisKey, RedisValue>(kv.Key, kv.Value)).ToArray(),
-                overwrite ? When.Always : When.NotExists), () => string.Join(",", keyValues.Keys));
+            return Db.StringSet(keyValues.Select(kv => new KeyValuePair<RedisKey, RedisValue>(kv.Key, kv.Value)).ToArray(),
+                overwrite ? When.Always : When.NotExists);
         }
 
-        async Task<bool> IKeyValueStoreProvider.SetAllAsync(IDictionary<string, string> keyValues, bool overwrite)
+        async Task<bool> IKeyValueStoreProvider.SetAllAsync(IDictionary<string, byte[]> keyValues, bool overwrite)
         {
-            return await Profiler.Profile(()=> Db.StringSetAsync(keyValues.Select(kv => new KeyValuePair<RedisKey, RedisValue>(kv.Key, kv.Value)).ToArray(),
-                overwrite ? When.Always : When.NotExists), () => string.Join(",", keyValues.Keys));
+            return await Db.StringSetAsync(keyValues.Select(kv => new KeyValuePair<RedisKey, RedisValue>(kv.Key, kv.Value)).ToArray(),
+                overwrite ? When.Always : When.NotExists);
         }
 
-        string IKeyValueStoreProvider.Exchange(string key, string value)
+        byte[] IKeyValueStoreProvider.Exchange(string key, byte[] value)
         {
-            return Profiler.Profile(()=> Db.StringGetSet(key, value), key);
+            return Db.StringGetSet(key, value);
         }
 
-        async Task<string> IKeyValueStoreProvider.ExchangeAsync(string key, string value)
+        async Task<byte[]> IKeyValueStoreProvider.ExchangeAsync(string key, byte[] value)
         {
-            return await Profiler.Profile(() => Db.StringGetSetAsync(key, value), key);
+            return await Db.StringGetSetAsync(key, value);
         }
 
         long IKeyValueStoreProvider.AppendString(string key, string value)
         {
-            return Profiler.Profile(()=> Db.StringAppend(key, value), key);
+            return Db.StringAppend(key, value);
         }
 
         async Task<long> IKeyValueStoreProvider.AppendStringAsync(string key, string value)
         {
-            return await Profiler.Profile(() => Db.StringAppendAsync(key, value), key);
+            return await Db.StringAppendAsync(key, value);
         }
 
         string IKeyValueStoreProvider.SubString(string key, long start, long end)
         {
-            return Profiler.Profile(()=> Db.StringGetRange(key, start, end), key);
+            return Db.StringGetRange(key, start, end);
         }
 
         async Task<string> IKeyValueStoreProvider.SubStringAsync(string key, long start, long end)
         {
-            return await Profiler.Profile(() => Db.StringGetRangeAsync(key, start, end), key);
+            return await Db.StringGetRangeAsync(key, start, end);
         }
 
         long IKeyValueStoreProvider.OverwriteString(string key, long offset, string value)
         {
-            return Profiler.Profile(() => (long) Db.StringSetRange(key, offset, value), key);
+            return (long)Db.StringSetRange(key, offset, value);
         }
 
         async Task<long> IKeyValueStoreProvider.OverwriteStringAsync(string key, long offset, string value)
         {
-            return (long) await Profiler.Profile(() => Db.StringSetRangeAsync(key, offset, value), key);
+            return (long)await Db.StringSetRangeAsync(key, offset, value);
         }
 
         long IKeyValueStoreProvider.SizeInBytes(string key)
         {
-            return Profiler.Profile(()=> Db.StringLength(key), key);
+            return Db.StringLength(key);
         }
 
         async Task<long> IKeyValueStoreProvider.SizeInBytesAsync(string key)
         {
-            return await Profiler.Profile(() => Db.StringLengthAsync(key), key);
+            return await Db.StringLengthAsync(key);
         }
 
         bool IKeyValueStoreProvider.Contains(string key)
         {
-            return Profiler.Profile(() => Db.KeyExists(key), key);
+            return Db.KeyExists(key);
         }
 
         async Task<bool> IKeyValueStoreProvider.ContainsAsync(string key)
         {
-            return await Profiler.Profile(() => Db.KeyExistsAsync(key), key);
+            return await Db.KeyExistsAsync(key);
         }
 
         bool IKeyValueStoreProvider.Rename(string oldKey, string newKey)
         {
-            return Profiler.Profile(() => Db.KeyRename(oldKey, newKey), ()=> oldKey + "|" + newKey);
+            return Db.KeyRename(oldKey, newKey);
         }
 
         async Task<bool> IKeyValueStoreProvider.RenameAsync(string oldKey, string newKey)
         {
-            return await Profiler.Profile(() => Db.KeyRenameAsync(oldKey, newKey), () => oldKey + "|" + newKey);
+            return await Db.KeyRenameAsync(oldKey, newKey);
         }
 
         long IKeyValueStoreProvider.Increment(string key, long amount)
         {
-            return Profiler.Profile(() => Db.StringIncrement(key, amount), key);
+            return Db.StringIncrement(key, amount);
             ;
         }
 
         async Task<long> IKeyValueStoreProvider.IncrementAsync(string key, long amount)
         {
-            return await Profiler.Profile(() => Db.StringIncrementAsync(key, amount), key);
+            return await Db.StringIncrementAsync(key, amount);
         }
 
         long IKeyValueStoreProvider.Decrement(string key, long amount)
         {
-            return Profiler.Profile(() => Db.StringDecrement(key, amount), key);
+            return Db.StringDecrement(key, amount);
         }
 
         async Task<long> IKeyValueStoreProvider.DecrementAsync(string key, long amount)
         {
-            return await Profiler.Profile(() => Db.StringDecrementAsync(key, amount), key);
+            return await Db.StringDecrementAsync(key, amount);
         }
     }
 }

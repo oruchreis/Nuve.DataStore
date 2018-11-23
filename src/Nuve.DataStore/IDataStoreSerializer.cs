@@ -11,9 +11,9 @@ namespace Nuve.DataStore
     /// </summary>
     public interface IDataStoreSerializer
     {
-        string Serialize<T>(T objectToSerialize);
-        T Deserialize<T>(string serializedObject);
-        string Serialize(object objectToSerialize);
-        object Deserialize(string serializedObject, Type type);
+        byte[] Serialize<T>(T objectToSerialize);
+        T Deserialize<T>(byte[] serializedObject);
+        byte[] Serialize(object objectToSerialize);
+        object Deserialize(byte[] serializedObject, Type type);
     }
 }

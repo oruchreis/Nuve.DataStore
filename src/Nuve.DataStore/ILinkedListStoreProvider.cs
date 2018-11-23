@@ -7,53 +7,53 @@ namespace Nuve.DataStore
     {
         Task<bool> IsExistsAsync(string listKey);
 
-        Task<string> GetAsync(string listKey, long index);
+        Task<byte[]> GetAsync(string listKey, long index);
 
-        Task<IList<string>> GetRangeAsync(string listKey, long start, long end);
+        Task<IList<byte[]>> GetRangeAsync(string listKey, long start, long end);
 
-        Task SetAsync(string listKey, long index, string value);
+        Task SetAsync(string listKey, long index, byte[] value);
 
-        Task<long> AddFirstAsync(string listKey, params string[] value);
+        Task<long> AddFirstAsync(string listKey, params byte[][] value);
 
-        Task<long> AddLastAsync(string listKey, params string[] value);
+        Task<long> AddLastAsync(string listKey, params byte[][] value);
 
-        Task<long> AddAfterAsync(string listKey, string pivot, string value);
+        Task<long> AddAfterAsync(string listKey, byte[] pivot, byte[] value);
 
-        Task<long> AddBeforeAsync(string listKey, string pivot, string value);
+        Task<long> AddBeforeAsync(string listKey, byte[] pivot, byte[] value);
 
         Task<long> CountAsync(string listKey);
 
-        Task<string> RemoveFirstAsync(string listKey);
+        Task<byte[]> RemoveFirstAsync(string listKey);
 
-        Task<string> RemoveLastAsync(string listKey);
+        Task<byte[]> RemoveLastAsync(string listKey);
 
-        Task<long> RemoveAsync(string listKey, string value);
+        Task<long> RemoveAsync(string listKey, byte[] value);
 
         Task TrimAsync(string listKey, long start, long end);
 
         bool IsExists(string listKey);
+
+        byte[] Get(string listKey, long index);
         
-        string Get(string listKey, long index);
+        IList<byte[]> GetRange(string listKey, long start, long end);
         
-        IList<string> GetRange(string listKey, long start, long end);
+        void Set(string listKey, long index, byte[] value);
         
-        void Set(string listKey, long index, string value);
+        long AddFirst(string listKey, params byte[][] value);
         
-        long AddFirst(string listKey, params string[] value);
+        long AddLast(string listKey, params byte[][] value);
         
-        long AddLast(string listKey, params string[] value);
+        long AddAfter(string listKey, byte[] pivot, byte[] value);
         
-        long AddAfter(string listKey, string pivot, string value);
-        
-        long AddBefore(string listKey, string pivot, string value);
+        long AddBefore(string listKey, byte[] pivot, byte[] value);
         
         long Count(string listKey);
+
+        byte[] RemoveFirst(string listKey);
+
+        byte[] RemoveLast(string listKey);
         
-        string RemoveFirst(string listKey);
-        
-        string RemoveLast(string listKey);
-        
-        long Remove(string listKey, string value);
+        long Remove(string listKey, byte[] value);
         
         void Trim(string listKey, long start, long end);
     }

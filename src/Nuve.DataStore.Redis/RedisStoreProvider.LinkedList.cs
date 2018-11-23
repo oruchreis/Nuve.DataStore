@@ -10,132 +10,132 @@ namespace Nuve.DataStore.Redis
     {
         bool ILinkedListStoreProvider.IsExists(string listKey)
         {
-            return Profiler.Profile(() => Db.KeyExists(listKey), listKey);
+            return Db.KeyExists(listKey);
         }
 
         async Task<bool> ILinkedListStoreProvider.IsExistsAsync(string listKey)
         {
-            return await Profiler.Profile(() => Db.KeyExistsAsync(listKey), listKey);
+            return await Db.KeyExistsAsync(listKey);
         }
 
-        string ILinkedListStoreProvider.Get(string listKey, long index)
+        byte[] ILinkedListStoreProvider.Get(string listKey, long index)
         {
-            return Profiler.Profile(() => Db.ListGetByIndex(listKey, index), listKey);
+            return Db.ListGetByIndex(listKey, index);
         }
 
-        async Task<string> ILinkedListStoreProvider.GetAsync(string listKey, long index)
+        async Task<byte[]> ILinkedListStoreProvider.GetAsync(string listKey, long index)
         {
-            return await Profiler.Profile(() => Db.ListGetByIndexAsync(listKey, index), listKey);
+            return await Db.ListGetByIndexAsync(listKey, index);
         }
 
-        IList<string> ILinkedListStoreProvider.GetRange(string listKey, long start, long end)
+        IList<byte[]> ILinkedListStoreProvider.GetRange(string listKey, long start, long end)
         {
-            return Profiler.Profile(() => Db.ListRange(listKey, start, end).ToStringArray(), listKey);
+            return Db.ListRange(listKey, start, end).Select(rv => (byte[])rv).ToList();
         }
 
-        async Task<IList<string>> ILinkedListStoreProvider.GetRangeAsync(string listKey, long start, long end)
+        async Task<IList<byte[]>> ILinkedListStoreProvider.GetRangeAsync(string listKey, long start, long end)
         {
-            return await Profiler.Profile(async () => (await Db.ListRangeAsync(listKey, start, end)).ToStringArray(), listKey);
+            return (await Db.ListRangeAsync(listKey, start, end)).Select(rv => (byte[])rv).ToList();
         }
 
-        void ILinkedListStoreProvider.Set(string listKey, long index, string value)
+        void ILinkedListStoreProvider.Set(string listKey, long index, byte[] value)
         {
-            Profiler.Profile(() => Db.ListSetByIndex(listKey, index, value), listKey);
+            Db.ListSetByIndex(listKey, index, value);
         }
 
-        async Task ILinkedListStoreProvider.SetAsync(string listKey, long index, string value)
+        async Task ILinkedListStoreProvider.SetAsync(string listKey, long index, byte[] value)
         {
-            await Profiler.Profile(() => Db.ListSetByIndexAsync(listKey, index, value), listKey);
+            await Db.ListSetByIndexAsync(listKey, index, value);
         }
 
-        long ILinkedListStoreProvider.AddFirst(string listKey, params string[] value)
+        long ILinkedListStoreProvider.AddFirst(string listKey, params byte[][] value)
         {
-            return Profiler.Profile(() => Db.ListLeftPush(listKey, value.Select(item => (RedisValue) item).ToArray()), listKey);
+            return Db.ListLeftPush(listKey, value.Select(item => (RedisValue) item).ToArray());
         }
 
-        async Task<long> ILinkedListStoreProvider.AddFirstAsync(string listKey, params string[] value)
+        async Task<long> ILinkedListStoreProvider.AddFirstAsync(string listKey, params byte[][] value)
         {
-            return await Profiler.Profile(() => Db.ListLeftPushAsync(listKey, value.Select(item => (RedisValue) item).ToArray()), listKey);
+            return await Db.ListLeftPushAsync(listKey, value.Select(item => (RedisValue) item).ToArray());
         }
 
-        long ILinkedListStoreProvider.AddLast(string listKey, params string[] value)
+        long ILinkedListStoreProvider.AddLast(string listKey, params byte[][] value)
         {
-            return Profiler.Profile(() => Db.ListRightPush(listKey, value.Select(item => (RedisValue) item).ToArray()), listKey);
+            return Db.ListRightPush(listKey, value.Select(item => (RedisValue) item).ToArray());
         }
 
-        async Task<long> ILinkedListStoreProvider.AddLastAsync(string listKey, params string[] value)
+        async Task<long> ILinkedListStoreProvider.AddLastAsync(string listKey, params byte[][] value)
         {
-            return await Profiler.Profile(() => Db.ListRightPushAsync(listKey, value.Select(item => (RedisValue) item).ToArray()), listKey);
+            return await Db.ListRightPushAsync(listKey, value.Select(item => (RedisValue) item).ToArray());
         }
 
-        long ILinkedListStoreProvider.AddAfter(string listKey, string pivot, string value)
+        long ILinkedListStoreProvider.AddAfter(string listKey, byte[] pivot, byte[] value)
         {
-            return Profiler.Profile(() => Db.ListInsertAfter(listKey, pivot, value), () => listKey + "|" + pivot);
+            return Db.ListInsertAfter(listKey, pivot, value);
         }
 
-        async Task<long> ILinkedListStoreProvider.AddAfterAsync(string listKey, string pivot, string value)
+        async Task<long> ILinkedListStoreProvider.AddAfterAsync(string listKey, byte[] pivot, byte[] value)
         {
-            return await Profiler.Profile(() => Db.ListInsertAfterAsync(listKey, pivot, value), () => listKey + "|" + pivot);
+            return await Db.ListInsertAfterAsync(listKey, pivot, value);
         }
 
-        long ILinkedListStoreProvider.AddBefore(string listKey, string pivot, string value)
+        long ILinkedListStoreProvider.AddBefore(string listKey, byte[] pivot, byte[] value)
         {
-            return Profiler.Profile(() => Db.ListInsertBefore(listKey, pivot, value), () => listKey + "|" + pivot);
+            return Db.ListInsertBefore(listKey, pivot, value);
         }
 
-        async Task<long> ILinkedListStoreProvider.AddBeforeAsync(string listKey, string pivot, string value)
+        async Task<long> ILinkedListStoreProvider.AddBeforeAsync(string listKey, byte[] pivot, byte[] value)
         {
-            return await Profiler.Profile(() => Db.ListInsertBeforeAsync(listKey, pivot, value), () => listKey + "|" + pivot);
+            return await Db.ListInsertBeforeAsync(listKey, pivot, value);
         }
 
         long ILinkedListStoreProvider.Count(string listKey)
         {
-            return Profiler.Profile(() => Db.ListLength(listKey), listKey);
+            return Db.ListLength(listKey);
         }
 
         async Task<long> ILinkedListStoreProvider.CountAsync(string listKey)
         {
-            return await Profiler.Profile(() => Db.ListLengthAsync(listKey), listKey);
+            return await Db.ListLengthAsync(listKey);
         }
 
-        string ILinkedListStoreProvider.RemoveFirst(string listKey)
+        byte[] ILinkedListStoreProvider.RemoveFirst(string listKey)
         {
-            return Profiler.Profile(() => Db.ListLeftPop(listKey), listKey);
+            return Db.ListLeftPop(listKey);
         }
 
-        async Task<string> ILinkedListStoreProvider.RemoveFirstAsync(string listKey)
+        async Task<byte[]> ILinkedListStoreProvider.RemoveFirstAsync(string listKey)
         {
-            return await Profiler.Profile(() => Db.ListLeftPopAsync(listKey), listKey);
+            return await Db.ListLeftPopAsync(listKey);
         }
 
-        string ILinkedListStoreProvider.RemoveLast(string listKey)
+        byte[] ILinkedListStoreProvider.RemoveLast(string listKey)
         {
-            return Profiler.Profile(() => Db.ListRightPop(listKey), listKey);
+            return Db.ListRightPop(listKey);
         }
 
-        async Task<string> ILinkedListStoreProvider.RemoveLastAsync(string listKey)
+        async Task<byte[]> ILinkedListStoreProvider.RemoveLastAsync(string listKey)
         {
-            return await Profiler.Profile(() => Db.ListRightPopAsync(listKey), listKey);
+            return await Db.ListRightPopAsync(listKey);
         }
 
-        long ILinkedListStoreProvider.Remove(string listKey, string value)
+        long ILinkedListStoreProvider.Remove(string listKey, byte[] value)
         {
-            return Profiler.Profile(() => Db.ListRemove(listKey, value), listKey);
+            return Db.ListRemove(listKey, value);
         }
 
-        async Task<long> ILinkedListStoreProvider.RemoveAsync(string listKey, string value)
+        async Task<long> ILinkedListStoreProvider.RemoveAsync(string listKey, byte[] value)
         {
-            return await Profiler.Profile(() => Db.ListRemoveAsync(listKey, value), listKey);
+            return await Db.ListRemoveAsync(listKey, value);
         }
 
         void ILinkedListStoreProvider.Trim(string listKey, long start, long end)
         {
-            Profiler.Profile(() => Db.ListTrim(listKey, start, end), listKey);
+            Db.ListTrim(listKey, start, end);
         }
 
         async Task ILinkedListStoreProvider.TrimAsync(string listKey, long start, long end)
         {
-            await Profiler.Profile(() => Db.ListTrimAsync(listKey, start, end), listKey);
+            await Db.ListTrimAsync(listKey, start, end);
         }
     }
 }

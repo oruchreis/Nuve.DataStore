@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Reflection;
+using System.Text;
 using Newtonsoft.Json;
 
 namespace Nuve.DataStore.Serializer.JsonNet
 {
     public class JsonNetDataStoreSerializer : IDataStoreSerializer
     {
-        private readonly JsonSerializerSettings _jsonSerializerSettings;
+        protected readonly JsonSerializerSettings Settings;
 
         public JsonNetDataStoreSerializer()
             :this(null)
@@ -16,54 +17,46 @@ namespace Nuve.DataStore.Serializer.JsonNet
 
         public JsonNetDataStoreSerializer(object settings = null)
         {
-            _jsonSerializerSettings = (settings as JsonSerializerSettings) ??
+            Settings = (settings as JsonSerializerSettings) ??
                                       new JsonSerializerSettings
                                       {
                                           TypeNameHandling = TypeNameHandling.Auto, //bunun ile $type etiketi eklenip polimorfik objelere izin veriliyor.
                                           ObjectCreationHandling = ObjectCreationHandling.Replace, // bu olmazsa ctor'daki default değerlere ekleme yapar.
-#if NET452
-                                          ContractResolver = new NoConstructorCreationContractResolver()
-#endif
+                                          ContractResolver = new NoConstructorCreationContractResolver(),
+                                          ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+                                          PreserveReferencesHandling = PreserveReferencesHandling.Objects,
+                                          
                                       };
         }
 
-        public string Serialize<T>(T objectToSerialize)
+        public virtual byte[] Serialize<T>(T objectToSerialize)
         {
-            return JsonConvert.SerializeObject(objectToSerialize, _jsonSerializerSettings);
+            return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(objectToSerialize, Settings));
         }
 
-        public T Deserialize<T>(string serializedObject)
+        public virtual T Deserialize<T>(byte[] serializedObject)
         {
-            if (string.IsNullOrEmpty(serializedObject))
+            if (serializedObject == null)
                 return default(T);
-            return JsonConvert.DeserializeObject<T>(serializedObject, _jsonSerializerSettings);
+            var str = Encoding.UTF8.GetString(serializedObject);
+            if (string.IsNullOrEmpty(str))
+                return default(T);
+            return JsonConvert.DeserializeObject<T>(str, Settings);
         }
 
-        public string Serialize(object objectToSerialize)
+        public virtual byte[] Serialize(object objectToSerialize)
         {
-            return JsonConvert.SerializeObject(objectToSerialize, _jsonSerializerSettings);
+            return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(objectToSerialize, Settings));
         }
 
-        public object Deserialize(string serializedObject, Type type)
+        public virtual object Deserialize(byte[] serializedObject, Type type)
         {
-            if (string.IsNullOrEmpty(serializedObject))
-            {
-#if NET452
-                if (type.IsValueType)
-                {
-                    return Activator.CreateInstance(type);
-                }
-#endif
-#if NETSTANDARD1_6
-                if (type.GetTypeInfo().IsValueType)
-                {
-                    return Activator.CreateInstance(type);
-                }
-#endif
-
-                return null;
-            }
-            return JsonConvert.DeserializeObject(serializedObject, type, _jsonSerializerSettings);
+            if (serializedObject == null)
+                return type.IsValueType ? Activator.CreateInstance(type) : null;
+            var str = Encoding.UTF8.GetString(serializedObject);
+            if (string.IsNullOrEmpty(str))
+                return type.IsValueType ? Activator.CreateInstance(type) : null;
+            return JsonConvert.DeserializeObject(str, type, Settings);
         }
     }
 }

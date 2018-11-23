@@ -13,7 +13,7 @@ namespace Nuve.DataStore
     public sealed class HashStore: DataStoreBase
     {
         private readonly IDictionaryStoreProvider _dictionaryStoreProvider;
-        private static readonly string _typeName = typeof(HashStore).GetOriginalName();
+        private static readonly string _typeName = typeof(HashStore).GetFriendlyName();
 
         /// <summary>
         /// Dictionary değer tutan store yapısı. 
@@ -28,8 +28,9 @@ namespace Nuve.DataStore
         /// <param name="profiler">Özel olarak sadece bu data store'un metodlarını profile etmek için kullanılır. 
         /// Setlense de setlenmese de <see cref="DataStoreManager"/>'a kayıtlı global profiler kullanılır.</param>
         public HashStore(string masterKey, string connectionName = null, TimeSpan? defaultExpire = null, bool autoPing = false,
-            string namespaceSeperator = null, string overrideRootNamespace = null, IDataStoreSerializer serializer = null, IDataStoreProfiler profiler = null):
-            base(connectionName, defaultExpire, autoPing, namespaceSeperator, overrideRootNamespace, serializer, profiler)
+            string namespaceSeperator = null, string overrideRootNamespace = null, IDataStoreSerializer serializer = null, IDataStoreProfiler profiler = null,
+            int? compressBiggerThan = null) :
+            base(connectionName, defaultExpire, autoPing, namespaceSeperator, overrideRootNamespace, serializer, profiler, compressBiggerThan)
         {
             _dictionaryStoreProvider = Provider as IDictionaryStoreProvider;
             if (_dictionaryStoreProvider == null)

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -13,19 +14,34 @@ namespace Nuve.DataStore.Helpers
         /// </summary>
         /// <param name="type"></param>
         /// <returns></returns>
-        public static string GetOriginalName(this Type type)
+        public static string GetFriendlyName(this Type type)
         {
-#if NET452
-            var typeName = type.FullName.Replace(type.Namespace + ".", "");
-
-            var provider = System.CodeDom.Compiler.CodeDomProvider.CreateProvider("CSharp");
-            var reference = new System.CodeDom.CodeTypeReference(typeName);
-
-            return provider.GetTypeOutput(reference);
-#endif
-# if NETSTANDARD1_6
-            return type.FullName;
-#endif
+            var prefix = "";
+            if (type.IsNested && !type.IsGenericParameter && type.DeclaringType != null)
+                prefix = $"{type.DeclaringType.GetFriendlyName()}.";
+            if (type == typeof(int))
+                return $"{prefix}int";
+            else if (type == typeof(short))
+                return $"{prefix}short";
+            else if (type == typeof(byte))
+                return $"{prefix}byte";
+            else if (type == typeof(bool))
+                return $"{prefix}bool";
+            else if (type == typeof(long))
+                return $"{prefix}long";
+            else if (type == typeof(float))
+                return $"{prefix}float";
+            else if (type == typeof(double))
+                return $"{prefix}double";
+            else if (type == typeof(decimal))
+                return $"{prefix}decimal";
+            else if (type == typeof(string))
+                return $"{prefix}string";
+            else if (type.GetTypeInfo().IsGenericType)
+                return prefix + type.Name.Split('`')[0] + "<" +
+                       string.Join(", ", type.GetGenericArguments().Select(GetFriendlyName).ToArray()) + ">";
+            else
+                return prefix + type.Name;
         }
     }
 }

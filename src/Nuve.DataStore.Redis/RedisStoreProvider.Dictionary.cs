@@ -11,149 +11,148 @@ namespace Nuve.DataStore.Redis
     {
         bool IDictionaryStoreProvider.IsExists(string dictKey)
         {
-            return Profiler.Profile(() => Db.KeyExists(dictKey), dictKey);
+            return Db.KeyExists(dictKey);
         }
 
         async Task<bool> IDictionaryStoreProvider.IsExistsAsync(string dictKey)
         {
-            return await Profiler.Profile(() => Db.KeyExistsAsync(dictKey), dictKey);
+            return await Db.KeyExistsAsync(dictKey);
         }
 
-        string IDictionaryStoreProvider.Get(string dictKey, string itemKey)
+        byte[] IDictionaryStoreProvider.Get(string dictKey, string itemKey)
         {
-            return Profiler.Profile(() => Db.HashGet(dictKey, itemKey), () => dictKey + "=>" + itemKey);
+            return Db.HashGet(dictKey, itemKey);
         }
 
-        async Task<string> IDictionaryStoreProvider.GetAsync(string dictKey, string itemKey)
+        async Task<byte[]> IDictionaryStoreProvider.GetAsync(string dictKey, string itemKey)
         {
-            return await Profiler.Profile(() => Db.HashGetAsync(dictKey, itemKey), () => dictKey + "=>" + itemKey);
+            return await Db.HashGetAsync(dictKey, itemKey);
         }
 
-        IDictionary<string, string> IDictionaryStoreProvider.Get(string dictKey, params string[] itemKeys)
+        IDictionary<string, byte[]> IDictionaryStoreProvider.Get(string dictKey, params string[] itemKeys)
         {
-            return Profiler.Profile(() =>
-                             {
-                                 var values = Db.HashGet(dictKey, itemKeys.Select(item => (RedisValue) item).ToArray());
-                                 return itemKeys.Zip(values, (k, v) => new {k, v}).ToDictionary(kv => (string) kv.k, kv => (string) kv.v);
-                             }, () => dictKey + "=>" + string.Join(",", itemKeys));
+            var values = Db.HashGet(dictKey, itemKeys.Select(item => (RedisValue)item).ToArray());
+            return itemKeys.Zip(values, (k, v) => new { k, v }).ToDictionary(kv => kv.k, kv => (byte[])kv.v);
         }
 
-        async Task<IDictionary<string, string>> IDictionaryStoreProvider.GetAsync(string dictKey, params string[] itemKeys)
+        async Task<IDictionary<string, byte[]>> IDictionaryStoreProvider.GetAsync(string dictKey, params string[] itemKeys)
         {
-            return await Profiler.Profile(async () =>
-                                    {
-                                        var values = await Db.HashGetAsync(dictKey, itemKeys.Select(item => (RedisValue) item).ToArray());
-                                        return itemKeys.Zip(values, (k, v) => new {k, v}).ToDictionary(kv => (string) kv.k, kv => (string) kv.v);
-                                    }, () => dictKey + "=>" + string.Join(",", itemKeys));
+            var values = await Db.HashGetAsync(dictKey, itemKeys.Select(item => (RedisValue)item).ToArray());
+            return itemKeys.Zip(values, (k, v) => new { k, v }).ToDictionary(kv => (string)kv.k, kv => (byte[])kv.v);
         }
 
-        bool IDictionaryStoreProvider.Set(string dictKey, string itemKey, string itemValue, bool overwrite)
+        bool IDictionaryStoreProvider.Set(string dictKey, string itemKey, byte[] itemValue, bool overwrite)
         {
-            return Profiler.Profile(() => Db.HashSet(dictKey, itemKey, itemValue, overwrite ? When.Always : When.NotExists), 
-                () => dictKey + "=>" + itemKey);
+            return Db.HashSet(dictKey, itemKey, itemValue, overwrite ? When.Always : When.NotExists);
         }
 
-        async Task<bool> IDictionaryStoreProvider.SetAsync(string dictKey, string itemKey, string itemValue, bool overwrite)
+        async Task<bool> IDictionaryStoreProvider.SetAsync(string dictKey, string itemKey, byte[] itemValue, bool overwrite)
         {
-            return await Profiler.Profile(() => Db.HashSetAsync(dictKey, itemKey, itemValue, overwrite ? When.Always : When.NotExists), 
-                () => dictKey + "=>" + itemKey);
+            return await Db.HashSetAsync(dictKey, itemKey, itemValue, overwrite ? When.Always : When.NotExists);
         }
 
-        void IDictionaryStoreProvider.Set(string dictKey, IDictionary<string, string> keyValues)
+        void IDictionaryStoreProvider.Set(string dictKey, IDictionary<string, byte[]> keyValues)
         {
-            Profiler.Profile(() => Db.HashSet(dictKey, keyValues.Select(kv => new HashEntry(kv.Key, kv.Value)).ToArray()), 
-                () => dictKey + "=>" + string.Join(",", keyValues.Keys));
+            Db.HashSet(dictKey, keyValues.Select(kv => new HashEntry(kv.Key, kv.Value)).ToArray());
         }
 
-        async Task IDictionaryStoreProvider.SetAsync(string dictKey, IDictionary<string, string> keyValues)
+        async Task IDictionaryStoreProvider.SetAsync(string dictKey, IDictionary<string, byte[]> keyValues)
         {
-            await Profiler.Profile(() => Db.HashSetAsync(dictKey, keyValues.Select(kv => new HashEntry(kv.Key, kv.Value)).ToArray()),
-                () => dictKey + "=>" + string.Join(",", keyValues.Keys));
+            await Db.HashSetAsync(dictKey, keyValues.Select(kv => new HashEntry(kv.Key, kv.Value)).ToArray());
         }
 
         long IDictionaryStoreProvider.Remove(string dictKey, params string[] itemKeys)
         {
-            return Profiler.Profile(() => Db.HashDelete(dictKey, itemKeys.Select(item => (RedisValue)item).ToArray()),
-                () => dictKey + "=>" + string.Join(",", itemKeys));
+            return Db.HashDelete(dictKey, itemKeys.Select(item => (RedisValue)item).ToArray());
         }
 
         async Task<long> IDictionaryStoreProvider.RemoveAsync(string dictKey, params string[] itemKeys)
         {
-            return await Profiler.Profile(() => Db.HashDeleteAsync(dictKey, itemKeys.Select(item => (RedisValue)item).ToArray()),
-                () => dictKey + "=>" + string.Join(",", itemKeys));
+            return await Db.HashDeleteAsync(dictKey, itemKeys.Select(item => (RedisValue)item).ToArray());
         }
 
         bool IDictionaryStoreProvider.Contains(string dictKey, string itemKey)
         {
-            return Profiler.Profile(() => Db.HashExists(dictKey, itemKey), 
-                () => dictKey + "=>" + itemKey);
+            return Db.HashExists(dictKey, itemKey);
         }
 
         async Task<bool> IDictionaryStoreProvider.ContainsAsync(string dictKey, string itemKey)
         {
-            return await Profiler.Profile(() => Db.HashExistsAsync(dictKey, itemKey),() => dictKey + "=>" + itemKey);
+            return await Db.HashExistsAsync(dictKey, itemKey);
         }
 
         long IDictionaryStoreProvider.Count(string dictKey)
         {
-            return Profiler.Profile(() => Db.HashLength(dictKey), dictKey);
+            return Db.HashLength(dictKey);
         }
 
         async Task<long> IDictionaryStoreProvider.CountAsync(string dictKey)
         {
-            return await Profiler.Profile(() => Db.HashLengthAsync(dictKey), dictKey);
+            return await Db.HashLengthAsync(dictKey);
         }
 
-        IDictionary<string, string> IDictionaryStoreProvider.GetDictionary(string dictKey)
+        IDictionary<string, byte[]> IDictionaryStoreProvider.GetDictionary(string dictKey)
         {
-            return Profiler.Profile(() => Db.HashGetAll(dictKey).ToStringDictionary(), dictKey);
+            return Db.HashGetAll(dictKey).ToDictionary(rv => (string)rv.Name, rv => (byte[])rv.Value);
         }
 
-        async Task<IDictionary<string, string>> IDictionaryStoreProvider.GetDictionaryAsync(string dictKey)
+        async Task<IDictionary<string, byte[]>> IDictionaryStoreProvider.GetDictionaryAsync(string dictKey)
         {
-            return await Profiler.Profile(async () => (await Db.HashGetAllAsync(dictKey)).ToStringDictionary(), dictKey);
+            return (await Db.HashGetAllAsync(dictKey)).ToDictionary(rv => (string)rv.Name, rv => (byte[])rv.Value);
         }
 
         IList<string> IDictionaryStoreProvider.Keys(string dictKey)
         {
-            return Profiler.Profile(() => Db.HashKeys(dictKey).ToStringArray(), dictKey);
+            return Db.HashKeys(dictKey).ToStringArray();
         }
 
         async Task<IList<string>> IDictionaryStoreProvider.KeysAsync(string dictKey)
         {
-            return await Profiler.Profile(async () => (await Db.HashKeysAsync(dictKey)).ToStringArray(), dictKey);
+            return (await Db.HashKeysAsync(dictKey)).ToStringArray();
         }
 
-        IList<string> IDictionaryStoreProvider.Values(string dictKey)
+        IList<byte[]> IDictionaryStoreProvider.Values(string dictKey)
         {
-            return Profiler.Profile(() => Db.HashValues(dictKey).ToStringArray(), dictKey);
+            return Db.HashValues(dictKey).Select(rv => (byte[])rv).ToList();
         }
 
-        async Task<IList<string>> IDictionaryStoreProvider.ValuesAsync(string dictKey)
+        async Task<IList<byte[]>> IDictionaryStoreProvider.ValuesAsync(string dictKey)
         {
-            return await Profiler.Profile(async () => (await Db.HashValuesAsync(dictKey)).ToStringArray(), dictKey);
+            return (await Db.HashValuesAsync(dictKey)).Select(rv => (byte[])rv).ToList();
         }
 
         long IDictionaryStoreProvider.Increment(string dictKey, string itemKey, long value)
         {
-            return Profiler.Profile(() => Db.HashIncrement(dictKey, itemKey, value), () => dictKey + "=>" + itemKey);
+            return Db.HashIncrement(dictKey, itemKey, value);
         }
 
         async Task<long> IDictionaryStoreProvider.IncrementAsync(string dictKey, string itemKey, long value)
         {
-            return await Profiler.Profile(() => Db.HashIncrementAsync(dictKey, itemKey, value), () => dictKey + "=>" + itemKey);
+            return await Db.HashIncrementAsync(dictKey, itemKey, value);
         }
 
         long IDictionaryStoreProvider.SizeInBytes(string dictKey, string itemKey)
         {
             //todo: Redis 3.2'de bu özellik var, StackExchange'de yok.
-            return Profiler.Profile(() => Encoding.ASCII.GetByteCount(Db.HashGet(dictKey, itemKey)), () => dictKey + "=>" + itemKey);
+            return Encoding.ASCII.GetByteCount(Db.HashGet(dictKey, itemKey));
         }
 
         async Task<long> IDictionaryStoreProvider.SizeInBytesAsync(string dictKey, string itemKey)
         {
             //todo: Redis 3.2'de bu özellik var, StackExchange'de yok.
-            return await Profiler.Profile(async () => Encoding.ASCII.GetByteCount(await Db.HashGetAsync(dictKey, itemKey)), () => dictKey + "=>" + itemKey);
+            return Encoding.ASCII.GetByteCount(await Db.HashGetAsync(dictKey, itemKey));
+        }
+
+        async Task<long> IDictionaryStoreProvider.RenameKeyAsync(string dictKey, string oldKey, string newKey)
+        {
+            var value = await Db.HashGetAsync(dictKey, oldKey);
+            return await Db.HashSetAsync(dictKey, newKey, value) && await Db.HashDeleteAsync(dictKey, oldKey) ? 1 : 0;
+        }
+
+        long IDictionaryStoreProvider.RenameKey(string dictKey, string oldKey, string newKey)
+        {
+            var value = Db.HashGet(dictKey, oldKey);
+            return Db.HashSet(dictKey, newKey, value) && Db.HashDelete(dictKey, oldKey) ? 1 : 0;
         }
     }
 }

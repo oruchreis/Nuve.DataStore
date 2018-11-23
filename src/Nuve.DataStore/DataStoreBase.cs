@@ -1,8 +1,12 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net.NetworkInformation;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,6 +21,7 @@ namespace Nuve.DataStore
         private readonly string _rootNameSpace;
         protected readonly IDataStoreProvider Provider;
         internal readonly IDataStoreProfiler Profiler;
+        private int? _compressBiggerThan;
 
         /// <summary>
         /// Tüm DataStore yapıları için base sınıf.
@@ -30,16 +35,18 @@ namespace Nuve.DataStore
         /// <param name="profiler">Özel olarak sadece bu data store'un metodlarını profile etmek için kullanılır. 
         /// Setlense de setlenmese de <see cref="DataStoreManager"/>'a kayıtlı global profiler kullanılır.</param>
         protected DataStoreBase(string connectionName = null, TimeSpan? defaultExpire = null, bool autoPing = false,
-            string namespaceSeperator = null, string overrideRootNamespace = null, IDataStoreSerializer serializer = null, IDataStoreProfiler profiler = null)
+            string namespaceSeperator = null, string overrideRootNamespace = null, IDataStoreSerializer serializer = null, IDataStoreProfiler profiler = null,
+            int? compressBiggerThan = null)
         {
             DefaultExpire = defaultExpire ?? TimeSpan.Zero;
             AutoPing = autoPing;
             NamespaceSeperator = namespaceSeperator ?? ":";
-            DataStoreManager.GetProvider(connectionName, out Provider, out _rootNameSpace);            
+            DataStoreManager.GetProvider(connectionName, out Provider, out _rootNameSpace, out int? defaultCompressBiggerThan);
             if (overrideRootNamespace != null)
                 _rootNameSpace = overrideRootNamespace;
             _serializer = serializer ?? DataStoreManager.DefaultSerializer;
             Profiler = profiler;
+            _compressBiggerThan = compressBiggerThan ?? defaultCompressBiggerThan;
         }
 
         private long _defaultExpire;
@@ -157,6 +164,55 @@ namespace Nuve.DataStore
             return pathsWithValues.ToDictionary(kv => JoinWithRootNamespace(kv.Key), kv => kv.Value);
         }
 
+        private static readonly byte[] _compressSignature = Encoding.ASCII.GetBytes("__Compressed_D__");
+        private const CompressionLevel _compressionLevel = CompressionLevel.Optimal;
+
+        private byte[] CompressIfNeeded(byte[] uncompressed)
+        {
+            if (_compressBiggerThan == null || uncompressed.Length < _compressBiggerThan)
+                return uncompressed;
+
+            using (var cs = new MemoryStream())
+            {
+                cs.Write(_compressSignature, 0, _compressSignature.Length);
+                using (var ds = new DeflateStream(cs, _compressionLevel))
+                {
+                    ds.Write(uncompressed, 0, uncompressed.Length);
+                    ds.Close();
+                }
+
+                return cs.ToArray();
+            }
+        }
+
+        private byte[] DecompressIfNeeded(byte[] compressed)
+        {
+            if (compressed == null)
+                return null;
+
+            for (int i = 0; i < _compressSignature.Length; i++)
+            {
+                if (compressed[i] != _compressSignature[i])
+                {
+                    return compressed; //çünkü signature yok ve aslında uncompressed.
+                }
+            }
+
+            var compressedData = new byte[compressed.Length - _compressSignature.Length];
+            Array.Copy(compressed, _compressSignature.Length, compressedData, 0, compressedData.Length);
+            using(var uncompressedStream = new MemoryStream())
+            using (var compressedStream = new MemoryStream(compressedData))
+            {
+                using (var ds = new DeflateStream(compressedStream, CompressionMode.Decompress))
+                {
+                    ds.CopyTo(uncompressedStream);
+                    ds.Close();
+
+                    return uncompressedStream.ToArray();
+                }
+            }
+        }
+
         /// <summary>
         /// Tek değeri deserialize etmek için yardımcı metod.
         /// </summary>
@@ -164,9 +220,9 @@ namespace Nuve.DataStore
         /// <param name="result"></param>
         /// <returns></returns>
         [DebuggerStepThrough]
-        protected T SingleResult<T>(string result)
+        protected T SingleResult<T>(byte[] result)
         {
-            return _serializer.Deserialize<T>(result);
+            return result is T sameType ? sameType : _serializer.Deserialize<T>(DecompressIfNeeded(result));
         }
 
         /// <summary>
@@ -176,9 +232,9 @@ namespace Nuve.DataStore
         /// <param name="type"></param>
         /// <returns></returns>
         [DebuggerStepThrough]
-        protected object SingleResult(string result, Type type)
+        protected object SingleResult(byte[] result, Type type)
         {
-            return _serializer.Deserialize(result, type);
+            return type == typeof(byte[]) ? result : _serializer.Deserialize(DecompressIfNeeded(result), type);
         }
 
         /// <summary>
@@ -188,12 +244,15 @@ namespace Nuve.DataStore
         /// <param name="result"></param>
         /// <returns></returns>
         [DebuggerStepThrough]
-        protected IDictionary<string, T> DictionaryResult<T>(IDictionary<string, string> result)
+        protected IDictionary<string, T> DictionaryResult<T>(IDictionary<string, byte[]> result)
         {
+            if (result is IDictionary<string, T> sameType)
+                return sameType;
+
             var dic = new Dictionary<string, T>();
             foreach (var kv in result)
             {
-                dic[kv.Key] = _serializer.Deserialize<T>(kv.Value);
+                dic[kv.Key] = _serializer.Deserialize<T>(DecompressIfNeeded(kv.Value));
             }
             return dic;
         }
@@ -205,12 +264,12 @@ namespace Nuve.DataStore
         /// <param name="types"></param>
         /// <returns></returns>
         [DebuggerStepThrough]
-        protected IDictionary<string, object> DictionaryResult(IDictionary<string, string> result, IDictionary<string, Type> types)
+        protected IDictionary<string, object> DictionaryResult(IDictionary<string, byte[]> result, IDictionary<string, Type> types)
         {
             var dic = new Dictionary<string, object>();
             foreach (var kv in result)
             {
-                dic[kv.Key] = _serializer.Deserialize(kv.Value, types[kv.Key]);
+                dic[kv.Key] = types[kv.Key] == typeof(byte[]) ? kv.Value : _serializer.Deserialize(DecompressIfNeeded(kv.Value), types[kv.Key]);
             }
             return dic;
         }
@@ -222,12 +281,15 @@ namespace Nuve.DataStore
         /// <param name="result"></param>
         /// <returns></returns>
         [DebuggerStepThrough]
-        protected IList<T> ListResult<T>(IList<string> result)
+        protected IList<T> ListResult<T>(IList<byte[]> result)
         {
+            if (result is IList<T> sameType)
+                return sameType;
+
             var list = new List<T>();
             foreach (var item in result)
             {
-                list.Add(_serializer.Deserialize<T>(item));
+                list.Add(_serializer.Deserialize<T>(DecompressIfNeeded(item)));
             }
             return list;
         }
@@ -239,12 +301,15 @@ namespace Nuve.DataStore
         /// <param name="result"></param>
         /// <returns></returns>
         [DebuggerStepThrough]
-        protected HashSet<T> HashSetResult<T>(HashSet<string> result)
+        protected HashSet<T> HashSetResult<T>(HashSet<byte[]> result)
         {
+            if (result is HashSet<T> sameType)
+                return sameType;
+
             var hashSet = new HashSet<T>();
             foreach (var item in result)
             {
-                hashSet.Add(_serializer.Deserialize<T>(item));
+                hashSet.Add(_serializer.Deserialize<T>(DecompressIfNeeded(item)));
             }
             return hashSet;
         }
@@ -256,11 +321,14 @@ namespace Nuve.DataStore
         /// <param name="value"></param>
         /// <returns></returns>
         [DebuggerStepThrough]
-        protected string AsValue<T>(T value)
+        protected byte[] AsValue<T>(T value)
         {
+            if (value is byte[] sameType)
+                return sameType;
+
             if (typeof(T) == typeof(object))
-                return _serializer.Serialize((object)value);
-            return _serializer.Serialize(value);
+                return CompressIfNeeded(_serializer.Serialize((object)value));
+            return CompressIfNeeded(_serializer.Serialize(value));
         }
 
         /// <summary>
@@ -270,14 +338,11 @@ namespace Nuve.DataStore
         /// <param name="values"></param>
         /// <returns></returns>
         [DebuggerStepThrough]
-        protected string[] AsValues<T>(IList<T> values)
+        protected byte[][] AsValues<T>(IList<T> values)
         {
-            var result = new List<string>();
-            foreach (var value in values)
-            {
-                result.Add(AsValue(value));
-            }
-            return result.ToArray();
+            if (values is byte[][] sameType)
+                return sameType;
+            return values.Select(v => AsValue(v)).ToArray();
         }
 
         /// <summary>
@@ -287,9 +352,9 @@ namespace Nuve.DataStore
         /// <param name="keyValues"></param>
         /// <returns></returns>
         [DebuggerStepThrough]
-        protected IDictionary<string, string> AsKeyValue<T>(IDictionary<string, T> keyValues)
+        protected IDictionary<string, byte[]> AsKeyValue<T>(IDictionary<string, T> keyValues)
         {
-            var dic = new Dictionary<string, string>();
+            var dic = new Dictionary<string, byte[]>();
             foreach (var kv in keyValues)
             {
                 dic[kv.Key] = AsValue(kv.Value);
@@ -297,6 +362,6 @@ namespace Nuve.DataStore
             return dic;
         }
 
-        internal abstract string TypeName{get;}
+        internal abstract string TypeName { get; }
     }
 }

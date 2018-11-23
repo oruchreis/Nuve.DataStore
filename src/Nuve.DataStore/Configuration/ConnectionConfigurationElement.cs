@@ -1,4 +1,4 @@
-#if NET452
+#if NET47
 using System.Configuration;
 
 namespace Nuve.DataStore.Configuration
@@ -68,6 +68,13 @@ namespace Nuve.DataStore.Configuration
             {
                 this["default"] = value;
             }
+        }
+
+        [ConfigurationProperty("compressBiggerThan", IsRequired = false, IsKey = true)]
+        public int? CompressBiggerThan
+        {
+            get => (int?)this["compressBiggerThan"];
+            set => this["compressBiggerThan"] = value;
         }
     }
 }

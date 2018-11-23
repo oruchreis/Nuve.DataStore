@@ -11,8 +11,8 @@ namespace Nuve.DataStore
     public sealed class LinkedListStore<TValue>: DataStoreBase, ICollection<TValue>, IList<TValue>
     {
         private readonly ILinkedListStoreProvider _linkedListStoreProvider;
-        private static readonly string _valueName = typeof(TValue).GetOriginalName().Replace('.', '_');
-        private static readonly string _typeName = typeof(DictionaryStore<TValue>).GetOriginalName();
+        private static readonly string _valueName = typeof(TValue).GetFriendlyName().Replace('.', '_');
+        private static readonly string _typeName = typeof(DictionaryStore<TValue>).GetFriendlyName();
 
         /// <summary>
         /// HashSet değer tutan store yapısı. 
@@ -27,8 +27,9 @@ namespace Nuve.DataStore
         /// <param name="profiler">Özel olarak sadece bu data store'un metodlarını profile etmek için kullanılır. 
         /// Setlense de setlenmese de <see cref="DataStoreManager"/>'a kayıtlı global profiler kullanılır.</param>
         public LinkedListStore(string masterKey, string connectionName = null, TimeSpan? defaultExpire = null, bool autoPing = false,
-            string namespaceSeperator = null, string overrideRootNamespace = null, IDataStoreSerializer serializer = null, IDataStoreProfiler profiler = null):
-            base(connectionName, defaultExpire, autoPing, namespaceSeperator, overrideRootNamespace, serializer, profiler)
+            string namespaceSeperator = null, string overrideRootNamespace = null, IDataStoreSerializer serializer = null, IDataStoreProfiler profiler = null,
+            int? compressBiggerThan = null) :
+            base(connectionName, defaultExpire, autoPing, namespaceSeperator, overrideRootNamespace, serializer, profiler, compressBiggerThan)
         {
             _linkedListStoreProvider = Provider as ILinkedListStoreProvider;
             if (_linkedListStoreProvider == null)

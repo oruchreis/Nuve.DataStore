@@ -12,7 +12,6 @@ namespace Nuve.DataStore.Redis
         private static readonly ConcurrentDictionary<string, ConnectionMultiplexer> _connections = new ConcurrentDictionary<string, ConnectionMultiplexer>();
         protected ConnectionMultiplexer Redis;
         protected IDatabase Db { get { return Redis.GetDatabase(); } }
-        protected RedisProfiler Profiler;
         public void Initialize(string connectionString, IDataStoreProfiler profiler)
         {
             Redis = _connections.GetOrAdd(connectionString,
@@ -21,8 +20,6 @@ namespace Nuve.DataStore.Redis
                     var cm = ConnectionMultiplexer.Connect(ParseConnectionString(cs));
                     cm.PreserveAsyncOrder = false; //http://stackoverflow.com/questions/30797716/deadlock-when-accessing-stackexchange-redis
                     Thread.Sleep(1000); //https://github.com/StackExchange/StackExchange.Redis/issues/248#issuecomment-182504080   
-                    Profiler = new RedisProfiler(cm, profiler);
-                    //cm.RegisterProfiler(Profiler);
                     return cm;
                 });      
         }
@@ -42,7 +39,7 @@ namespace Nuve.DataStore.Redis
 
         StoreKeyType IDataStoreProvider.GetKeyType(string key)
         {
-            var redisType = Profiler.Profile(() => Db.KeyType(key), key);
+            var redisType = Db.KeyType(key);
             return redisType == RedisType.List ? StoreKeyType.LinkedList :
                redisType == RedisType.Hash ? StoreKeyType.Dictionary :
                redisType == RedisType.SortedSet ? StoreKeyType.SortedSet :
@@ -51,7 +48,7 @@ namespace Nuve.DataStore.Redis
 
         async Task<StoreKeyType> IDataStoreProvider.GetKeyTypeAsync(string key)
         {
-            var redisType = await Profiler.Profile(() => Db.KeyTypeAsync(key), key);
+            var redisType = await Db.KeyTypeAsync(key);
             return redisType == RedisType.List ? StoreKeyType.LinkedList :
                redisType == RedisType.Hash ? StoreKeyType.Dictionary :
                redisType == RedisType.SortedSet ? StoreKeyType.SortedSet :
@@ -60,32 +57,32 @@ namespace Nuve.DataStore.Redis
 
         TimeSpan? IDataStoreProvider.GetExpire(string key)
         {
-            return Profiler.Profile(() => Db.KeyTimeToLive(key), key);
+            return Db.KeyTimeToLive(key);
         }
 
         async Task<TimeSpan?> IDataStoreProvider.GetExpireAsync(string key)
         {
-            return await Profiler.Profile(() => Db.KeyTimeToLiveAsync(key), key);
+            return await Db.KeyTimeToLiveAsync(key);
         }
 
         bool IDataStoreProvider.SetExpire(string key, TimeSpan expire)
         {
-            return Profiler.Profile(() => Db.KeyExpire(key, expire), key);
+            return Db.KeyExpire(key, expire);
         }
 
         async Task<bool> IDataStoreProvider.SetExpireAsync(string key, TimeSpan expire)
         {
-            return await Profiler.Profile(() => Db.KeyExpireAsync(key, expire), key);
+            return await Db.KeyExpireAsync(key, expire);
         }  
 
         bool IDataStoreProvider.Remove(string key)
         {
-            return Profiler.Profile(() => Db.KeyDelete(key), key);
+            return Db.KeyDelete(key);
         }
 
         async Task<bool> IDataStoreProvider.RemoveAsync(string key)
         {
-            return await Profiler.Profile(() => Db.KeyDeleteAsync(key), key);
+            return await Db.KeyDeleteAsync(key);
         }
 
         void IDataStoreProvider.Lock(string lockKey, TimeSpan waitTimeout, TimeSpan lockerExpire, Action action, bool skipWhenTimeout, bool throwWhenTimeout)
@@ -104,6 +101,24 @@ namespace Nuve.DataStore.Redis
                 if (throwWhenTimeout)
                     ExceptionDispatchInfo.Capture(e).Throw();
             }
-        }      
+        }
+
+        async Task IDataStoreProvider.LockAsync(string lockKey, TimeSpan waitTimeout, TimeSpan lockerExpire, Func<Task> action, bool skipWhenTimeout, bool throwWhenTimeout)
+        {
+            try
+            {
+                using (await Db.AcquireLockAsync(lockKey, waitTimeout, lockerExpire))
+                {
+                    await action();
+                }                
+            }
+            catch (TimeoutException e)
+            {
+                if (!skipWhenTimeout)
+                    await action();
+                if (throwWhenTimeout)
+                    ExceptionDispatchInfo.Capture(e).Throw();
+            }
+        }   
     }
 }

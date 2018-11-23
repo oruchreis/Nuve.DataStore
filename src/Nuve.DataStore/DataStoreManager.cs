@@ -5,7 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 
-#if NET452
+#if NET47
 using Nuve.DataStore.Configuration;
 using System.Configuration;
 #endif
@@ -30,11 +30,11 @@ namespace Nuve.DataStore
         private static readonly ReaderWriterLockSlim _providerLocker = new ReaderWriterLockSlim();
         private static readonly Dictionary<string, IDataStoreProvider> _providers = new Dictionary<string, IDataStoreProvider>();
         private static readonly Dictionary<string, string> _rootNamespaces = new Dictionary<string, string>();
+        private static readonly Dictionary<string, int?> _compressBiggerThans = new Dictionary<string, int?>();
         private static string _defaultConnection;
 
         private static Type GetType(string typeStr)
         {
-#if NET452
             var typeParts = typeStr.Split(',');
             var className = typeParts[0];
             var assembly = Assembly.GetExecutingAssembly();
@@ -44,10 +44,6 @@ namespace Nuve.DataStore
             }
 
             return assembly.GetType(className, true, false);
-#endif
-#if NETSTANDARD1_6
-            return Type.GetType(typeStr);
-#endif
         }
 
         /// <summary>
@@ -97,7 +93,7 @@ namespace Nuve.DataStore
         /// <param name="rootNamespace"></param>
         /// <param name="isDefault">Varsayılan bağlantı bu mu?</param>
         public static void CreateConnection(string connectionName, string providerName, string connectionString, 
-            string rootNamespace = "", bool isDefault = false)
+            string rootNamespace = "", bool isDefault = false, int? compressBiggerThan = null)
         {
             _providerLocker.EnterWriteLock();
             try
@@ -116,6 +112,7 @@ namespace Nuve.DataStore
                     _providers.Add(connectionName, provider);
 
                     _rootNamespaces[connectionName] = rootNamespace ?? "";
+                    _compressBiggerThans[connectionName] = compressBiggerThan;
 
                     if (_defaultConnection == null || isDefault)
                         _defaultConnection = connectionName;
@@ -168,7 +165,7 @@ namespace Nuve.DataStore
 
         static DataStoreManager()
         {
-#if NET452
+#if NET47
             var config = DataStoreConfigurationSection.GetConfiguration();
             if (config == null) return;
 
@@ -200,12 +197,12 @@ namespace Nuve.DataStore
                 {
                     if (string.IsNullOrEmpty(connection.Name))
                         continue;
-                    CreateConnection(connection.Name, connection.ProviderName, connection.ConnectionString, connection.Namespace, connection.IsDefault);
+                    CreateConnection(connection.Name, connection.ProviderName, connection.ConnectionString, connection.Namespace, connection.IsDefault, connection.CompressBiggerThan);
                 }
 #endif
         }
 
-        internal static void GetProvider(string connectionName, out IDataStoreProvider provider, out string rootNamespace)
+        internal static void GetProvider(string connectionName, out IDataStoreProvider provider, out string rootNamespace, out int? compressBiggerThan)
         {
             _providerLocker.EnterReadLock();
             try
@@ -214,6 +211,7 @@ namespace Nuve.DataStore
                     connectionName = _defaultConnection;
                 provider = _providers[connectionName];
                 rootNamespace = _rootNamespaces[connectionName];
+                compressBiggerThan = _compressBiggerThans[connectionName];
             }
             finally
             {

@@ -29,7 +29,7 @@ namespace Nuve.DataStore
 
             return new ProfilerContext(globalContext, localContext);*/
 
-            #if NET452
+            #if NET47
                 return InternalProfileManager.Current.ProfilerContext;
             #endif
             return new object();
@@ -46,7 +46,7 @@ namespace Nuve.DataStore
             {
                 DataStoreManager.GlobalProfiler.Finish(((ProfilerContext)context).GlobalContext, results);
             }*/
-#if NET452
+#if NET47
             InternalProfileManager.Current.AddProfileResults(results);
 #endif
         }
@@ -66,7 +66,7 @@ namespace Nuve.DataStore
             }
 
             return new ProfilerContext(globalContext, localContext);*/
-#if NET452
+#if NET47
             return InternalProfileManager.Current.ProfilerContext;
 #endif
             return new object();

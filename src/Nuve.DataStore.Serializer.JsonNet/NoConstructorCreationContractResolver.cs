@@ -1,5 +1,4 @@
-﻿#if NET452
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -54,4 +53,3 @@ namespace Nuve.DataStore.Serializer.JsonNet
         }
     }
 }
-#endif

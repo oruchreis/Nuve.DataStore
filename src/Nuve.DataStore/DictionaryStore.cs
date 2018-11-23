@@ -13,8 +13,8 @@ namespace Nuve.DataStore
     public sealed class DictionaryStore<TValue> : DataStoreBase, IDictionary<string, TValue>
     {
         private readonly IDictionaryStoreProvider _dictionaryStoreProvider;
-        private static readonly string _valueName = typeof (TValue).GetOriginalName().Replace('.', '_');
-        private static readonly string _typeName = typeof (DictionaryStore<TValue>).GetOriginalName();
+        private static readonly string _valueName = typeof (TValue).GetFriendlyName().Replace('.', '_');
+        private static readonly string _typeName = typeof (DictionaryStore<TValue>).GetFriendlyName();
 
         /// <summary>
         /// Dictionary değer tutan store yapısı. 
@@ -29,8 +29,9 @@ namespace Nuve.DataStore
         /// <param name="profiler">Özel olarak sadece bu data store'un metodlarını profile etmek için kullanılır. 
         /// Setlense de setlenmese de <see cref="DataStoreManager"/>'a kayıtlı global profiler kullanılır.</param>
         public DictionaryStore(string masterKey, string connectionName = null, TimeSpan? defaultExpire = null, bool autoPing = false,
-            string namespaceSeperator = null, string overrideRootNamespace = null, IDataStoreSerializer serializer = null, IDataStoreProfiler profiler = null) :
-            base(connectionName, defaultExpire, autoPing, namespaceSeperator, overrideRootNamespace, serializer, profiler)
+            string namespaceSeperator = null, string overrideRootNamespace = null, IDataStoreSerializer serializer = null, IDataStoreProfiler profiler = null,
+            int? compressBiggerThan = null) :
+            base(connectionName, defaultExpire, autoPing, namespaceSeperator, overrideRootNamespace, serializer, profiler,compressBiggerThan)
         {
             _dictionaryStoreProvider = Provider as IDictionaryStoreProvider;
             if (_dictionaryStoreProvider == null)
@@ -555,6 +556,24 @@ namespace Nuve.DataStore
             using (new ProfileScope(this, lockKey))
             {
                 Provider.Lock(lockKey, waitTimeout, lockerExpire, action, skipWhenTimeout, throwWhenTimeout);
+            }
+        }
+
+        /// <summary>
+        /// Verilen key'e göre kilit oluşturur.
+        /// </summary>
+        /// <param name="key">Hangi key kilitlenecek</param>
+        /// <param name="waitTimeout"></param>
+        /// <param name="lockerExpire"></param>
+        /// <param name="action"></param>
+        /// <param name="skipWhenTimeout">Timeout olduğunda çalıştırılacak olan aksiyon geçilsin mi?</param>
+        /// <param name="throwWhenTimeout">Timeout olduğunda <see cref="TimeoutException"/> fırlatılsın mı?</param>
+        public async Task LockAsync(string key, TimeSpan waitTimeout, TimeSpan lockerExpire, Func<Task> action, bool skipWhenTimeout = true, bool throwWhenTimeout = false)
+        {
+            var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
+            using (new ProfileScope(this, lockKey))
+            {
+                await Provider.LockAsync(lockKey, waitTimeout, lockerExpire, action, skipWhenTimeout, throwWhenTimeout);
             }
         }
 

@@ -10,13 +10,13 @@ namespace Nuve.DataStore
     {
         Task<bool> IsExistsAsync(string dictKey);
 
-        Task<string> GetAsync(string dictKey, string itemKey);
+        Task<byte[]> GetAsync(string dictKey, string itemKey);
 
-        Task<IDictionary<string, string>> GetAsync(string dictKey, params string[] itemKeys);
+        Task<IDictionary<string, byte[]>> GetAsync(string dictKey, params string[] itemKeys);
 
-        Task<bool> SetAsync(string dictKey, string itemKey, string itemValue, bool overwrite);
+        Task<bool> SetAsync(string dictKey, string itemKey, byte[] itemValue, bool overwrite);
 
-        Task SetAsync(string dictKey, IDictionary<string, string> keyValues);
+        Task SetAsync(string dictKey, IDictionary<string, byte[]> keyValues);
 
         Task<long> RemoveAsync(string dictKey, params string[] itemKeys);
 
@@ -24,25 +24,27 @@ namespace Nuve.DataStore
 
         Task<long> CountAsync(string dictKey);
 
-        Task<IDictionary<string, string>> GetDictionaryAsync(string dictKey);
+        Task<IDictionary<string, byte[]>> GetDictionaryAsync(string dictKey);
 
         Task<IList<string>> KeysAsync(string dictKey);
 
-        Task<IList<string>> ValuesAsync(string dictKey);
+        Task<IList<byte[]>> ValuesAsync(string dictKey);
 
         Task<long> IncrementAsync(string dictKey, string itemKey, long value);
 
         Task<long> SizeInBytesAsync(string dictKey, string itemKey);
 
+        Task<long> RenameKeyAsync(string dictKey, string oldKey, string newKey);
+
         bool IsExists(string dictKey);
 
-        string Get(string dictKey, string itemKey);
+        byte[] Get(string dictKey, string itemKey);
 
-        IDictionary<string, string> Get(string dictKey, params string[] itemKeys);
+        IDictionary<string, byte[]> Get(string dictKey, params string[] itemKeys);
 
-        bool Set(string dictKey, string itemKey, string itemValue, bool overwrite);
+        bool Set(string dictKey, string itemKey, byte[] itemValue, bool overwrite);
 
-        void Set(string dictKey, IDictionary<string, string> keyValues);
+        void Set(string dictKey, IDictionary<string, byte[]> keyValues);
 
         long Remove(string dictKey, params string[] itemKeys);
 
@@ -50,14 +52,16 @@ namespace Nuve.DataStore
 
         long Count(string dictKey);
 
-        IDictionary<string, string> GetDictionary(string dictKey);
+        IDictionary<string, byte[]> GetDictionary(string dictKey);
 
         IList<string> Keys(string dictKey);
 
-        IList<string> Values(string dictKey);
+        IList<byte[]> Values(string dictKey);
 
         long Increment(string dictKey, string itemKey, long value);
 
         long SizeInBytes(string dictKey, string itemKey);
+
+        long RenameKey(string dictKey, string oldKey, string newKey);
     }
 }

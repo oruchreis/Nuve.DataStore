@@ -42,22 +42,22 @@ namespace Nuve.DataStore
                 .First();
         }
 
-        public string Serialize<T>(T objectToSerialize)
+        public byte[] Serialize<T>(T objectToSerialize)
         {
-            return (string) _serializeMethod.Invoke(null, new object[] {objectToSerialize, typeof (T)});
+            return (byte[]) _serializeMethod.Invoke(null, new object[] {objectToSerialize, typeof (T)});
         }
 
-        public T Deserialize<T>(string serializedObject)
+        public T Deserialize<T>(byte[] serializedObject)
         {
             return (T) _deserializeMethod.Invoke(null, new object[] {serializedObject, typeof (T), null});
         }
 
-        public string Serialize(object objectToSerialize)
+        public byte[] Serialize(object objectToSerialize)
         {
-            return (string) _serializeMethod.Invoke(null, new[] {objectToSerialize, objectToSerialize.GetType()});
+            return (byte[]) _serializeMethod.Invoke(null, new[] {objectToSerialize, objectToSerialize.GetType()});
         }
 
-        public object Deserialize(string serializedObject, Type type)
+        public object Deserialize(byte[] serializedObject, Type type)
         {
             return _deserializeMethod.Invoke(null, new object[] {serializedObject, type, null});
         }
