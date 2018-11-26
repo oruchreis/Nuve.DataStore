@@ -7,7 +7,7 @@
     <PackageId>Nuve.DataStore</PackageId>
     <AssemblyVersion>1.1.6</AssemblyVersion>
     <PackageVersion>1.1.6</PackageVersion>
-    <ProjectUrl>https://github.com/oruchreis/Nuve.DataStore</ProjectUrl>
+    <PackageProjectUrl>https://github.com/oruchreis/Nuve.DataStore</PackageProjectUrl>
     <RepositoryUrl>https://github.com/oruchreis/Nuve.DataStore.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
@@ -18,7 +18,7 @@
     <Description>An abstract layer for key-value stores</Description>
     <Summary>An abstract layer for key-value stores</Summary>
     <PackageTags>key-value key value data store nuve redis</PackageTags>
-    <LangVersion>latest</LangVersion>
+    <LangVersion>latest</LangVersion>    
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="**\*.resx" />

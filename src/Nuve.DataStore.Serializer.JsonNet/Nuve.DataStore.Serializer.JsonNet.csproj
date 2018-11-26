@@ -7,7 +7,7 @@
     <PackageId>Nuve.DataStore.Serializer.JsonNet</PackageId>
     <AssemblyVersion>1.1.4</AssemblyVersion>
     <PackageVersion>1.1.4</PackageVersion>
-    <ProjectUrl>https://github.com/oruchreis/Nuve.DataStore</ProjectUrl>
+    <PackageProjectUrl>https://github.com/oruchreis/Nuve.DataStore</PackageProjectUrl>
     <RepositoryUrl>https://github.com/oruchreis/Nuve.DataStore.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
