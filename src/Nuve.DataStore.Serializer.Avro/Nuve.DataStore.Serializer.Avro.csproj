@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>An abstract layer for key-value stores</Description>
+    <Copyright>@oruchreis</Copyright>
+    <AssemblyTitle>Nuve.DataStore</AssemblyTitle>
+    <Authors>oruchreis</Authors>
+    <TargetFramework>netstandard1.6</TargetFramework>
+    <AssemblyName>Nuve.DataStore.Serializer.Avro</AssemblyName>
+    <PackageId>Nuve.DataStore.Serializer.Avro</PackageId>
+    <NetStandardImplicitPackageVersion>1.6.0</NetStandardImplicitPackageVersion>
+    <PackageTargetFallback>$(PackageTargetFallback);dnxcore50</PackageTargetFallback>
+    <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
+    <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
+    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nuve.DataStore\Nuve.DataStore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Hadoop.Avro2" Version="1.0.0" />
+  </ItemGroup>
+
+</Project>

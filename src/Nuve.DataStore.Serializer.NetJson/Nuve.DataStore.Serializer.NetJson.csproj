@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>An abstract layer for key-value stores</Description>
+    <Copyright>@oruchreis</Copyright>
+    <AssemblyTitle>Nuve.DataStore</AssemblyTitle>
+    <Authors>oruchreis</Authors>
+    <TargetFramework>netstandard1.6</TargetFramework>
+    <AssemblyName>Nuve.DataStore.Serializer.NetJson</AssemblyName>
+    <PackageId>Nuve.DataStore.Serializer.NetJson</PackageId>
+    <NetStandardImplicitPackageVersion>1.6.0</NetStandardImplicitPackageVersion>
+    <PackageTargetFallback>$(PackageTargetFallback);dnxcore50</PackageTargetFallback>
+    <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
+    <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
+    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nuve.DataStore\Nuve.DataStore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NetJSON" Version="1.2.1.4" />
+  </ItemGroup>
+
+</Project>

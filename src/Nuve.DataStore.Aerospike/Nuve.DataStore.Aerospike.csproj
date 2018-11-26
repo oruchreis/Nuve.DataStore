@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>An abstract layer for key-value stores</Description>
+    <Copyright>@oruchreis</Copyright>
+    <AssemblyTitle>Nuve.DataStore</AssemblyTitle>
+    <Authors>oruchreis</Authors>
+    <TargetFramework>net452</TargetFramework>
+    <AssemblyName>Nuve.DataStore.Aerospike</AssemblyName>
+    <PackageId>Nuve.DataStore.Aerospike</PackageId>
+    <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
+    <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
+    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nuve.DataStore\Nuve.DataStore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aerospike.Client" Version="3.2.4" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net452' ">
+    <Reference Include="System" />
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+</Project>
