@@ -10,11 +10,12 @@
     <PackageId>Nuve.DataStore</PackageId>
     <AssemblyVersion>1.1.6</AssemblyVersion>
     <PackageVersion>1.1.6</PackageVersion>
+    <RepositoryUrl>https://github.com/oruchreis/Nuve.DataStore.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
     <Description>An abstract layer for key-value stores</Description>
     <Copyright>https://www.apache.org/licenses/LICENSE-2.0</Copyright>
     <Authors>oruchreis</Authors>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageReleaseNotes>First open source release</PackageReleaseNotes>
     <PackageTags>key-value key value data store nuve redis</PackageTags>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
