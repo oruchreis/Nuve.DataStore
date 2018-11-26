@@ -13,9 +13,9 @@ namespace Nuve.DataStore
     /// Key-Value değer tutan store yapısı. 
     /// <remarks>Expire verilmediğinde veriler kalıcı olur. Bu sınıf thread-safe'dir.</remarks>
     /// </summary>
-    public class KeyValueStore: DataStoreBase
+    public class KeyValueStore : DataStoreBase
     {
-        private readonly IKeyValueStoreProvider _keyValueStoreProvider;        
+        private readonly IKeyValueStoreProvider _keyValueStoreProvider;
         private static readonly string _typeName = typeof(KeyValueStore).GetFriendlyName();
 
         /// <summary>
@@ -40,9 +40,36 @@ namespace Nuve.DataStore
                                                                   "The provider must implement IKeyValueStoreProvider interface to use KeyValueStore", connectionName));
         }
 
-        internal override string TypeName
+        internal override string TypeName => _typeName;
+
+        private void CheckAutoPing(string key, Action action)
         {
-            get { return _typeName; }
+            action();
+            if (AutoPing)
+                Task.Run(() => Ping(key));
+        }
+
+        private T CheckAutoPing<T>(string key, Func<T> func)
+        {
+            var result = func();
+            if (AutoPing)
+                Task.Run(() => Ping(key));
+            return result;
+        }
+
+        private void CheckAutoPing(IEnumerable<string> keys, Action action)
+        {
+            action();
+            if (AutoPing)
+                Task.Run(() => { foreach (var key in keys) Ping(key); });
+        }
+
+        private T CheckAutoPing<T>(IEnumerable<string> keys, Func<T> func)
+        {
+            var result = func();
+            if (AutoPing)
+                Task.Run(() => { foreach (var key in keys) Ping(key); });
+            return result;
         }
 
         /// <summary>
@@ -54,7 +81,8 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                return SingleResult<T>(_keyValueStoreProvider.Get(JoinWithRootNamespace(key)));
+                return CheckAutoPing(key,
+                    () => SingleResult<T>(_keyValueStoreProvider.Get(JoinWithRootNamespace(key))));
             }
         }
 
@@ -65,9 +93,10 @@ namespace Nuve.DataStore
         /// <returns></returns>
         public async Task<T> GetAsync<T>(string key)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
-                return SingleResult<T>(await _keyValueStoreProvider.GetAsync(JoinWithRootNamespace(key)));
+                return await CheckAutoPing(key,
+                    async () => SingleResult<T>(await _keyValueStoreProvider.GetAsync(JoinWithRootNamespace(key))));
             }
         }
 
@@ -79,9 +108,10 @@ namespace Nuve.DataStore
         /// <returns></returns>
         public async Task<object> GetAsync(string key, Type type)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
-                return SingleResult(await _keyValueStoreProvider.GetAsync(JoinWithRootNamespace(key)), type);
+                return await CheckAutoPing(key,
+                    async () => SingleResult(await _keyValueStoreProvider.GetAsync(JoinWithRootNamespace(key)), type));
             }
         }
 
@@ -95,7 +125,8 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                return SingleResult(_keyValueStoreProvider.Get(JoinWithRootNamespace(key)), type);
+                return CheckAutoPing(key,
+                    () => SingleResult(_keyValueStoreProvider.Get(JoinWithRootNamespace(key)), type));
             }
         }
 
@@ -109,7 +140,8 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, string.Join(",", keys)))
             {
-                return DictionaryResult<T>(_keyValueStoreProvider.GetAll(JoinWithRootNamespace(keys)));
+                return CheckAutoPing(keys,
+                    () => DictionaryResult<T>(_keyValueStoreProvider.GetAll(JoinWithRootNamespace(keys))));
             }
         }
 
@@ -123,7 +155,8 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, string.Join(",", keys)))
             {
-                return DictionaryResult<T>(await _keyValueStoreProvider.GetAllAsync(JoinWithRootNamespace(keys)));
+                return await CheckAutoPing(keys,
+                    async () => DictionaryResult<T>(await _keyValueStoreProvider.GetAllAsync(JoinWithRootNamespace(keys))));
             }
         }
 
@@ -136,7 +169,8 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, string.Join(",", keysTypes.Keys)))
             {
-                return DictionaryResult(await _keyValueStoreProvider.GetAllAsync(JoinWithRootNamespace(keysTypes.Keys)), keysTypes);
+                return await CheckAutoPing(keysTypes.Keys,
+                    async () => DictionaryResult(await _keyValueStoreProvider.GetAllAsync(JoinWithRootNamespace(keysTypes.Keys)), keysTypes));
             }
         }
 
@@ -149,7 +183,8 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, string.Join(",", keysTypes.Keys)))
             {
-                return DictionaryResult(_keyValueStoreProvider.GetAll(JoinWithRootNamespace(keysTypes.Keys)), keysTypes);
+                return CheckAutoPing(keysTypes.Keys,
+                    () => DictionaryResult(_keyValueStoreProvider.GetAll(JoinWithRootNamespace(keysTypes.Keys)), keysTypes));
             }
         }
 
@@ -162,7 +197,11 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                return _keyValueStoreProvider.Set(JoinWithRootNamespace(key), AsValue(entity), overwrite);
+                var result = CheckAutoPing(key,
+                    () => _keyValueStoreProvider.Set(JoinWithRootNamespace(key), AsValue(entity), overwrite));
+                if (result && DefaultExpire != null)
+                    SetExpire(key, DefaultExpire);
+                return result;
             }
         }
 
@@ -174,9 +213,13 @@ namespace Nuve.DataStore
         /// <param name="overwrite">False setlenirse, key var olduğunda üzerine yazmaz.</param>
         public async Task<bool> SetAsync<T>(string key, T entity, bool overwrite = true)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
-                return await _keyValueStoreProvider.SetAsync(JoinWithRootNamespace(key), AsValue(entity), overwrite);
+                var result = await CheckAutoPing(key,
+                    async () => await _keyValueStoreProvider.SetAsync(JoinWithRootNamespace(key), AsValue(entity), overwrite));
+                if (result && DefaultExpire != null)
+                    await SetExpireAsync(key, DefaultExpire);
+                return result;
             }
         }
 
@@ -189,7 +232,14 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, string.Join(",", keyValues.Keys)))
             {
-                return _keyValueStoreProvider.SetAll(AsKeyValue(JoinWithRootNamespace(keyValues)), overwrite);
+                var result = CheckAutoPing(keyValues.Keys,
+                    () => _keyValueStoreProvider.SetAll(AsKeyValue(JoinWithRootNamespace(keyValues)), overwrite));
+                if (result && DefaultExpire != null)
+                    foreach (var key in keyValues.Keys)
+                    {
+                        SetExpire(key, DefaultExpire);
+                    }
+                return result;
             }
         }
 
@@ -202,7 +252,14 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, string.Join(",", keyValues.Keys)))
             {
-                return await _keyValueStoreProvider.SetAllAsync(AsKeyValue(JoinWithRootNamespace(keyValues)), overwrite);
+                var result = await CheckAutoPing(keyValues.Keys,
+                    async () => await _keyValueStoreProvider.SetAllAsync(AsKeyValue(JoinWithRootNamespace(keyValues)), overwrite));
+                if (result && DefaultExpire != null)
+                    foreach (var key in keyValues.Keys)
+                    {
+                        await SetExpireAsync(key, DefaultExpire);
+                    }
+                return result;
             }
         }
 
@@ -217,7 +274,8 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                return SingleResult<T>(_keyValueStoreProvider.Exchange(JoinWithRootNamespace(key), AsValue(value)));
+                return CheckAutoPing(key,
+                    () => SingleResult<T>(_keyValueStoreProvider.Exchange(JoinWithRootNamespace(key), AsValue(value))));
             }
         }
 
@@ -230,9 +288,10 @@ namespace Nuve.DataStore
         /// <returns>Eski değer</returns>
         public async Task<T> ExchangeAsync<T>(string key, T value)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
-                return SingleResult<T>(await _keyValueStoreProvider.ExchangeAsync(JoinWithRootNamespace(key), AsValue(value)));
+                return await CheckAutoPing(key,
+                    async () => SingleResult<T>(await _keyValueStoreProvider.ExchangeAsync(JoinWithRootNamespace(key), AsValue(value))));
             }
         }
 
@@ -244,9 +303,10 @@ namespace Nuve.DataStore
         /// <returns>Eski değer</returns>
         public async Task<object> ExchangeAsync(string key, object value)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
-                return SingleResult(await _keyValueStoreProvider.ExchangeAsync(JoinWithRootNamespace(key), AsValue(value)), value.GetType());
+                return await CheckAutoPing(key,
+                    async () => SingleResult(await _keyValueStoreProvider.ExchangeAsync(JoinWithRootNamespace(key), AsValue(value)), value.GetType()));
             }
         }
 
@@ -260,7 +320,8 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                return SingleResult(_keyValueStoreProvider.Exchange(JoinWithRootNamespace(key), AsValue(value)), value.GetType());
+                return CheckAutoPing(key,
+                    () => SingleResult(_keyValueStoreProvider.Exchange(JoinWithRootNamespace(key), AsValue(value)), value.GetType()));
             }
         }
 
@@ -284,7 +345,7 @@ namespace Nuve.DataStore
         /// <param name="expire">Verinin süresi ne zaman dolacak?</param>
         public async Task<bool> SetExpireAsync(string key, TimeSpan expire)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
                 return await Provider.SetExpireAsync(JoinWithRootNamespace(key), expire);
             }
@@ -310,7 +371,7 @@ namespace Nuve.DataStore
         /// <returns></returns>
         public async Task<TimeSpan?> GetExpireAsync(string key)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
                 return await Provider.GetExpireAsync(JoinWithRootNamespace(key));
             }
@@ -321,7 +382,7 @@ namespace Nuve.DataStore
         /// </summary>
         /// <param name="key"></param>
         /// <returns></returns>
-        public bool Ping(string key)
+        public new bool Ping(string key)
         {
             return base.Ping(JoinWithRootNamespace(key));
         }
@@ -343,7 +404,7 @@ namespace Nuve.DataStore
         /// <returns></returns>
         public bool Remove(string key)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
                 return Provider.Remove(JoinWithRootNamespace(key));
             }
@@ -356,7 +417,7 @@ namespace Nuve.DataStore
         /// <returns></returns>
         public async Task<bool> RemoveAsync(string key)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
                 return await Provider.RemoveAsync(JoinWithRootNamespace(key));
             }
@@ -382,7 +443,7 @@ namespace Nuve.DataStore
         /// <returns></returns>
         public async Task<bool> ContainsAsync(string key)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
                 return await _keyValueStoreProvider.ContainsAsync(JoinWithRootNamespace(key));
             }
@@ -426,7 +487,8 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                return _keyValueStoreProvider.Increment(JoinWithRootNamespace(key), amount);
+                return CheckAutoPing(key,
+                    () => _keyValueStoreProvider.Increment(JoinWithRootNamespace(key), amount));
             }
         }
 
@@ -438,9 +500,10 @@ namespace Nuve.DataStore
         /// <returns></returns>
         public async Task<long> IncrementAsync(string key, long amount = 1)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
-                return await _keyValueStoreProvider.IncrementAsync(JoinWithRootNamespace(key), amount);
+                return await CheckAutoPing(key,
+                    async () => await _keyValueStoreProvider.IncrementAsync(JoinWithRootNamespace(key), amount));
             }
         }
 
@@ -454,7 +517,8 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                return _keyValueStoreProvider.Decrement(JoinWithRootNamespace(key), amount);
+                return CheckAutoPing(key,
+                    () => _keyValueStoreProvider.Decrement(JoinWithRootNamespace(key), amount));
             }
         }
 
@@ -466,9 +530,10 @@ namespace Nuve.DataStore
         /// <returns></returns>
         public async Task<long> DecrementAsync(string key, long amount = 1)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
-                return await _keyValueStoreProvider.DecrementAsync(JoinWithRootNamespace(key), amount);
+                return await CheckAutoPing(key,
+                    async () => await _keyValueStoreProvider.DecrementAsync(JoinWithRootNamespace(key), amount));
             }
         }
 
@@ -483,7 +548,8 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                return _keyValueStoreProvider.AppendString(JoinWithRootNamespace(key), value);
+                return CheckAutoPing(key,
+                    () => _keyValueStoreProvider.AppendString(JoinWithRootNamespace(key), value));
             }
         }
 
@@ -495,9 +561,10 @@ namespace Nuve.DataStore
         /// <returns>String'in yeni uzunluğu</returns>
         public async Task<long> AppendStringAsync(string key, string value)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
-                return await _keyValueStoreProvider.AppendStringAsync(JoinWithRootNamespace(key), value);
+                return await CheckAutoPing(key,
+                    async () => await _keyValueStoreProvider.AppendStringAsync(JoinWithRootNamespace(key), value));
             }
         }
 
@@ -512,7 +579,8 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                return _keyValueStoreProvider.SubString(JoinWithRootNamespace(key), start, end);
+                return CheckAutoPing(key,
+                    () => _keyValueStoreProvider.SubString(JoinWithRootNamespace(key), start, end));
             }
         }
 
@@ -525,9 +593,10 @@ namespace Nuve.DataStore
         /// <returns></returns>
         public async Task<string> SubStringAsync(string key, long start, long end)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
-                return await _keyValueStoreProvider.SubStringAsync(JoinWithRootNamespace(key), start, end);
+                return await CheckAutoPing(key,
+                    async () => await _keyValueStoreProvider.SubStringAsync(JoinWithRootNamespace(key), start, end));
             }
         }
 
@@ -542,7 +611,8 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                return _keyValueStoreProvider.OverwriteString(JoinWithRootNamespace(key), offset, value);
+                return CheckAutoPing(key,
+                    () => _keyValueStoreProvider.OverwriteString(JoinWithRootNamespace(key), offset, value));
             }
         }
 
@@ -555,9 +625,10 @@ namespace Nuve.DataStore
         /// <returns>Yeni oluşan string'in uzunluğu</returns>
         public async Task<long> OverwriteStringAsync(string key, long offset, string value)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
-                return await _keyValueStoreProvider.OverwriteStringAsync(JoinWithRootNamespace(key), offset, value);
+                return await CheckAutoPing(key,
+                    async () => await _keyValueStoreProvider.OverwriteStringAsync(JoinWithRootNamespace(key), offset, value));
             }
         }
 
@@ -581,7 +652,7 @@ namespace Nuve.DataStore
         /// <returns></returns>
         public async Task<long> SizeInBytesAsync(string key)
         {
-            using (new ProfileScope(this,key))
+            using (new ProfileScope(this, key))
             {
                 return await _keyValueStoreProvider.SizeInBytesAsync(JoinWithRootNamespace(key));
             }

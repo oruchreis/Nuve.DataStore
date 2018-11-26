@@ -8,8 +8,8 @@
     <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <PackageId>Nuve.DataStore</PackageId>
-    <AssemblyVersion>1.1.5</AssemblyVersion>
-    <PackageVersion>1.1.5</PackageVersion>
+    <AssemblyVersion>1.1.6</AssemblyVersion>
+    <PackageVersion>1.1.6</PackageVersion>
     <Description>An abstract layer for key-value stores</Description>
     <Copyright>https://www.apache.org/licenses/LICENSE-2.0</Copyright>
     <Authors>oruchreis</Authors>
