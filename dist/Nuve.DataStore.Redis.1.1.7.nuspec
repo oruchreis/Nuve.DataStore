@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>Nuve.DataStore.Redis</id>
+    <version>1.1.7</version>
+    <title>DataStore.Redis</title>
+    <authors>oruchreis</authors>
+    <owners>oruchreis</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <license type="expression">Apache-2.0</license>
+    <licenseUrl>https://licenses.nuget.org/Apache-2.0</licenseUrl>
+    <projectUrl>https://github.com/oruchreis/Nuve.DataStore</projectUrl>
+    <description>Redis provider for DataStore</description>
+    <copyright>oruchreis</copyright>
+    <tags>key-value key value data store nuve redis</tags>
+    <repository type="git" url="https://github.com/oruchreis/Nuve.DataStore.git" />
+    <dependencies>
+      <group targetFramework=".NETFramework4.7">
+        <dependency id="Nuve.DataStore" version="1.1.6" exclude="Build,Analyzers" />
+        <dependency id="StackExchange.Redis" version="2.0.571" exclude="Build,Analyzers" />
+      </group>
+      <group targetFramework=".NETStandard2.0">
+        <dependency id="Nuve.DataStore" version="1.1.6" exclude="Build,Analyzers" />
+        <dependency id="StackExchange.Redis" version="2.0.571" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+    <frameworkAssemblies>
+      <frameworkAssembly assemblyName="System.Configuration" targetFramework=".NETFramework4.7" />
+    </frameworkAssemblies>
+  </metadata>
+  <files>
+    <file src="D:\Projects\FatihTolgaAta\Nuve.DataStore\src\Nuve.DataStore.Redis\bin\Release\net47\Nuve.DataStore.Redis.dll" target="lib\net47\Nuve.DataStore.Redis.dll" />
+    <file src="D:\Projects\FatihTolgaAta\Nuve.DataStore\src\Nuve.DataStore.Redis\bin\Release\netstandard2.0\Nuve.DataStore.Redis.dll" target="lib\netstandard2.0\Nuve.DataStore.Redis.dll" />
+  </files>
+</package>
