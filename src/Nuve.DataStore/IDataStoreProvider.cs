@@ -9,6 +9,7 @@ namespace Nuve.DataStore
     public interface IDataStoreProvider
     {
         void Initialize(string connectionString, IDataStoreProfiler profiler);
+        Task InitializeAsync(string connectionString, IDataStoreProfiler profiler);
         StoreKeyType GetKeyType(string key);
         Task<StoreKeyType> GetKeyTypeAsync(string key);
         TimeSpan? GetExpire(string key);

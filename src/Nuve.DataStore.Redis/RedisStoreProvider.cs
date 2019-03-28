@@ -10,9 +10,10 @@ namespace Nuve.DataStore.Redis
     public partial class RedisStoreProvider : IDataStoreProvider
     {
         private static readonly ConcurrentDictionary<string, ConnectionMultiplexer> _connections = new ConcurrentDictionary<string, ConnectionMultiplexer>();
-        protected ConnectionMultiplexer Redis;
+        protected virtual ConnectionMultiplexer Redis { get; set; }
         protected IDatabase Db { get { return Redis.GetDatabase(); } }
-        public void Initialize(string connectionString, IDataStoreProfiler profiler)
+
+        public virtual void Initialize(string connectionString, IDataStoreProfiler profiler)
         {
             Redis = _connections.GetOrAdd(connectionString,
                 cs =>
@@ -21,7 +22,14 @@ namespace Nuve.DataStore.Redis
                     cm.PreserveAsyncOrder = false; //http://stackoverflow.com/questions/30797716/deadlock-when-accessing-stackexchange-redis
                     Thread.Sleep(1000); //https://github.com/StackExchange/StackExchange.Redis/issues/248#issuecomment-182504080   
                     return cm;
-                });      
+                });
+        }
+
+        public virtual Task InitializeAsync(string connectionString, IDataStoreProfiler profiler)
+        {
+            Initialize(connectionString, profiler);
+
+            return Task.CompletedTask;
         }
 
         protected ConfigurationOptions ParseConnectionString(string connString)
