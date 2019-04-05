@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,20 +10,175 @@ namespace Nuve.DataStore.Redis
 {
     public partial class RedisStoreProvider : IDataStoreProvider
     {
-        private static readonly ConcurrentDictionary<string, ConnectionMultiplexer> _connections = new ConcurrentDictionary<string, ConnectionMultiplexer>();
-        protected virtual ConnectionMultiplexer Redis { get; set; }
-        protected IDatabase Db { get { return Redis.GetDatabase(); } }
+        private static readonly ConcurrentDictionary<string, ConcurrentQueue<ConnectionMultiplexer>> _connectionPools = new ConcurrentDictionary<string, ConcurrentQueue<ConnectionMultiplexer>>();
+
+        private string _connectionString;
+        private ConcurrentQueue<ConnectionMultiplexer> _connectionPool;
+
+        protected T RedisCall<T>(Func<IDatabase, T> callFunction, int retryCount = 0, List<Exception> exceptions = null)
+        {
+            ConnectionMultiplexer conn = null;
+            try
+            {
+                if (!_connectionPool.TryDequeue(out conn))
+                {
+                    conn = ConnectionMultiplexer.Connect(_connectionString);
+                }
+                return callFunction(conn.GetDatabase());
+            }
+            catch (Exception e) when (
+                e is RedisServerException ||
+                e is RedisTimeoutException ||
+                e is RedisConnectionException
+                )
+            {
+                if (conn != null)
+                {
+                    conn.Dispose();
+                    conn = null;
+                }
+
+                if (exceptions == null)
+                    exceptions = new List<Exception>();
+
+                exceptions.Add(e);
+
+                if (retryCount < 5)
+                    return RedisCall(callFunction, retryCount + 1, exceptions);
+                else
+                    throw new AggregateException($"Retry limit exceeded.", exceptions);
+            }
+            finally
+            {
+                if (conn != null)
+                    _connectionPool.Enqueue(conn);
+            }
+        }
+
+        protected void RedisCall(Action<IDatabase> callFunction, int retryCount = 0, List<Exception> exceptions = null)
+        {
+            ConnectionMultiplexer conn = null;
+            try
+            {
+                if (!_connectionPool.TryDequeue(out conn))
+                {
+                    conn = ConnectionMultiplexer.Connect(_connectionString);
+                }
+                callFunction(conn.GetDatabase());
+            }
+            catch (Exception e) when (
+                e is RedisServerException ||
+                e is RedisTimeoutException ||
+                e is RedisConnectionException
+                )
+            {
+                if (conn != null)
+                {
+                    conn.Dispose();
+                    conn = null;
+                }
+
+                if (exceptions == null)
+                    exceptions = new List<Exception>();
+
+                exceptions.Add(e);
+
+                if (retryCount < 5)
+                    RedisCall(callFunction, retryCount + 1, exceptions);
+                else
+                    throw new AggregateException($"Retry limit exceeded.", exceptions);
+            }
+            finally
+            {
+                if (conn != null)
+                    _connectionPool.Enqueue(conn);
+            }
+        }
+
+        protected async Task<T> RedisCallAsync<T>(Func<IDatabase, Task<T>> callFunctionAsync, int retryCount = 0, List<Exception> exceptions = null)
+        {
+            ConnectionMultiplexer conn = null;
+            try
+            {
+                if (!_connectionPool.TryDequeue(out conn))
+                {
+                    conn = await ConnectionMultiplexer.ConnectAsync(_connectionString);
+                }
+                return await callFunctionAsync(conn.GetDatabase());
+            }
+            catch (Exception e) when (
+                e is RedisServerException ||
+                e is RedisTimeoutException ||
+                e is RedisConnectionException
+                )
+            {
+                if (conn != null)
+                {
+                    conn.Dispose();
+                    conn = null;
+                }
+
+                if (exceptions == null)
+                    exceptions = new List<Exception>();
+
+                exceptions.Add(e);
+
+                if (retryCount < 5)
+                    return await RedisCallAsync(callFunctionAsync, retryCount + 1, exceptions);
+                else
+                    throw new AggregateException($"Retry limit exceeded.", exceptions);
+            }
+            finally
+            {
+                if (conn != null)
+                    _connectionPool.Enqueue(conn);
+            }
+        }
+
+        protected async Task RedisCallAsync(Func<IDatabase, Task> callFunctionAsync, int retryCount = 0, List<Exception> exceptions = null)
+        {
+            ConnectionMultiplexer conn = null;
+            try
+            {
+                if (!_connectionPool.TryDequeue(out conn))
+                {
+                    conn = await ConnectionMultiplexer.ConnectAsync(_connectionString);
+                }
+                await callFunctionAsync(conn.GetDatabase());
+            }
+            catch (Exception e) when (
+                e is RedisServerException ||
+                e is RedisTimeoutException ||
+                e is RedisConnectionException
+                )
+            {
+                if (conn != null)
+                {
+                    conn.Dispose();
+                    conn = null;
+                }
+
+                if (exceptions == null)
+                    exceptions = new List<Exception>();
+
+                exceptions.Add(e);
+
+                if (retryCount < 5)
+                    await RedisCallAsync(callFunctionAsync, retryCount + 1, exceptions);
+                else
+                    throw new AggregateException($"Retry limit exceeded.", exceptions);
+            }
+            finally
+            {
+                if (conn != null)
+                    _connectionPool.Enqueue(conn);
+            }
+        }
 
         public virtual void Initialize(string connectionString, IDataStoreProfiler profiler)
         {
-            Redis = _connections.GetOrAdd(connectionString,
-                cs =>
-                {
-                    var cm = ConnectionMultiplexer.Connect(ParseConnectionString(cs));
-                    cm.PreserveAsyncOrder = false; //http://stackoverflow.com/questions/30797716/deadlock-when-accessing-stackexchange-redis
-                    Thread.Sleep(1000); //https://github.com/StackExchange/StackExchange.Redis/issues/248#issuecomment-182504080   
-                    return cm;
-                });
+            _connectionString = connectionString;
+            _connectionPool = _connectionPools.GetOrAdd(connectionString, cs => new ConcurrentQueue<ConnectionMultiplexer>());
         }
 
         public virtual Task InitializeAsync(string connectionString, IDataStoreProfiler profiler)
@@ -32,75 +188,89 @@ namespace Nuve.DataStore.Redis
             return Task.CompletedTask;
         }
 
-        protected ConfigurationOptions ParseConnectionString(string connString)
-        {
-            var config = ConfigurationOptions.Parse(connString, true);
-            if (!connString.Contains("abortConnect="))
-                config.AbortOnConnectFail = false;
-            if (!connString.Contains("syncTimeout="))
-                config.SyncTimeout = int.MaxValue;
-            if (!connString.Contains("keepAlive="))
-                config.KeepAlive = 180;
-
-            return config;
-        }
-
         StoreKeyType IDataStoreProvider.GetKeyType(string key)
         {
-            var redisType = Db.KeyType(key);
-            return redisType == RedisType.List ? StoreKeyType.LinkedList :
-               redisType == RedisType.Hash ? StoreKeyType.Dictionary :
-               redisType == RedisType.SortedSet ? StoreKeyType.SortedSet :
-               StoreKeyType.KeyValue;
+            return RedisCall(Db =>
+            {
+                var redisType = Db.KeyType(key);
+                return redisType == RedisType.List ? StoreKeyType.LinkedList :
+                   redisType == RedisType.Hash ? StoreKeyType.Dictionary :
+                   redisType == RedisType.SortedSet ? StoreKeyType.SortedSet :
+                   StoreKeyType.KeyValue;
+            });
         }
 
         async Task<StoreKeyType> IDataStoreProvider.GetKeyTypeAsync(string key)
         {
-            var redisType = await Db.KeyTypeAsync(key);
-            return redisType == RedisType.List ? StoreKeyType.LinkedList :
-               redisType == RedisType.Hash ? StoreKeyType.Dictionary :
-               redisType == RedisType.SortedSet ? StoreKeyType.SortedSet :
-               StoreKeyType.KeyValue;
+            return await RedisCallAsync(async Db =>
+            {
+                var redisType = await Db.KeyTypeAsync(key);
+                return redisType == RedisType.List ? StoreKeyType.LinkedList :
+                   redisType == RedisType.Hash ? StoreKeyType.Dictionary :
+                   redisType == RedisType.SortedSet ? StoreKeyType.SortedSet :
+                   StoreKeyType.KeyValue;
+            });
         }
 
         TimeSpan? IDataStoreProvider.GetExpire(string key)
         {
-            return Db.KeyTimeToLive(key);
+            return RedisCall(Db =>
+            {
+                return Db.KeyTimeToLive(key);
+            });
         }
 
         async Task<TimeSpan?> IDataStoreProvider.GetExpireAsync(string key)
         {
-            return await Db.KeyTimeToLiveAsync(key);
+            return await RedisCallAsync(async Db =>
+            {
+                return await Db.KeyTimeToLiveAsync(key);
+            });
         }
 
         bool IDataStoreProvider.SetExpire(string key, TimeSpan expire)
         {
-            return Db.KeyExpire(key, expire);
+            return RedisCall(Db =>
+            {
+                return Db.KeyExpire(key, expire);
+            });
         }
 
         async Task<bool> IDataStoreProvider.SetExpireAsync(string key, TimeSpan expire)
         {
-            return await Db.KeyExpireAsync(key, expire);
-        }  
+            return await RedisCallAsync(async Db =>
+            {
+                return await Db.KeyExpireAsync(key, expire);
+            });
+        }
 
         bool IDataStoreProvider.Remove(string key)
         {
-            return Db.KeyDelete(key);
+            return RedisCall(Db =>
+            {
+                return Db.KeyDelete(key);
+            });
         }
 
         async Task<bool> IDataStoreProvider.RemoveAsync(string key)
         {
-            return await Db.KeyDeleteAsync(key);
+            return await RedisCallAsync(async Db =>
+            {
+                return await Db.KeyDeleteAsync(key);
+            });
         }
 
         void IDataStoreProvider.Lock(string lockKey, TimeSpan waitTimeout, TimeSpan lockerExpire, Action action, bool skipWhenTimeout, bool throwWhenTimeout)
         {
             try
             {
-                using (Db.AcquireLock(lockKey, waitTimeout, lockerExpire))
+                RedisCall(Db =>
                 {
-                    action();
-                }                
+                    using (Db.AcquireLock(lockKey, waitTimeout, lockerExpire))
+                    {
+                        action();
+                    }
+                });
             }
             catch (TimeoutException e)
             {
@@ -115,10 +285,13 @@ namespace Nuve.DataStore.Redis
         {
             try
             {
-                using (await Db.AcquireLockAsync(lockKey, waitTimeout, lockerExpire))
+                await RedisCallAsync(async Db =>
                 {
-                    await action();
-                }                
+                    using (await Db.AcquireLockAsync(lockKey, waitTimeout, lockerExpire))
+                    {
+                        await action();
+                    }
+                });
             }
             catch (TimeoutException e)
             {
@@ -127,6 +300,6 @@ namespace Nuve.DataStore.Redis
                 if (throwWhenTimeout)
                     ExceptionDispatchInfo.Capture(e).Throw();
             }
-        }   
+        }
     }
 }
