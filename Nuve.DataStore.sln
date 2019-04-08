@@ -17,6 +17,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nuve.DataStore.Serializer.J
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nuve.DataStore.Test", "src\Nuve.DataStore.Test\Nuve.DataStore.Test.csproj", "{428B0B0D-D4CF-4A43-86D4-0A35930382A6}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nuve.DataStore.Serializer.Ceras", "src\Nuve.DataStore.Serializer.Ceras\Nuve.DataStore.Serializer.Ceras.csproj", "{3258C4FF-781C-4B8E-8061-7AF8D8A322B1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,10 @@ Global
 		{428B0B0D-D4CF-4A43-86D4-0A35930382A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{428B0B0D-D4CF-4A43-86D4-0A35930382A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{428B0B0D-D4CF-4A43-86D4-0A35930382A6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3258C4FF-781C-4B8E-8061-7AF8D8A322B1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3258C4FF-781C-4B8E-8061-7AF8D8A322B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3258C4FF-781C-4B8E-8061-7AF8D8A322B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3258C4FF-781C-4B8E-8061-7AF8D8A322B1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -47,6 +53,7 @@ Global
 		{20E5408B-9C3D-40DC-A6F2-992DC061C3EA} = {9065C4CE-8900-4BC8-B5C7-A75AB025DDBD}
 		{40B945F9-6EEA-4181-B26B-6B4031B1F693} = {B24F8A5E-9082-4313-B2B4-3BEB6001D3D1}
 		{428B0B0D-D4CF-4A43-86D4-0A35930382A6} = {E8133DDC-77DA-455C-813F-0B93F72E2F9F}
+		{3258C4FF-781C-4B8E-8061-7AF8D8A322B1} = {B24F8A5E-9082-4313-B2B4-3BEB6001D3D1}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {527E2080-B985-4CA2-8925-12A55DB92368}
