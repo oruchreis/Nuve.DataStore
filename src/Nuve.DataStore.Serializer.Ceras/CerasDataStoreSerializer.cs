@@ -11,7 +11,7 @@ namespace Nuve.DataStore.Serializer.Ceras
             CerasBufferPool.Pool = new CerasDefaultBufferPool();
         }
 
-        private static readonly ConcurrentDictionary<SerializerConfig, ConcurrentQueue<CerasSerializer>> _serializerPools = new ConcurrentDictionary<SerializerConfig, ConcurrentQueue<CerasSerializer>>();
+        private static readonly ConcurrentDictionary<SerializerConfig, ConcurrentQueue<CerasSerializer>> _serializerPools = new();
 
         public CerasDataStoreSerializer()
             : this(null)
@@ -20,20 +20,20 @@ namespace Nuve.DataStore.Serializer.Ceras
         }
 
         private readonly SerializerConfig _serializerConfig;
-        private readonly ConcurrentQueue<CerasSerializer> _serializerPool = new ConcurrentQueue<CerasSerializer>();
+        private readonly ConcurrentQueue<CerasSerializer> _serializerPool;
 
-        public CerasDataStoreSerializer(object staticSettings = null)
+        public CerasDataStoreSerializer(SerializerConfig? staticSettings)
         {
-            _serializerConfig = staticSettings as SerializerConfig ?? new SerializerConfig() { };
+            _serializerConfig = staticSettings ?? new SerializerConfig() { };
             _serializerPool = _serializerPools.GetOrAdd(_serializerConfig, config =>
             {
                 return new ConcurrentQueue<CerasSerializer>();
             });
         }
 
-        public virtual byte[] Serialize<T>(T objectToSerialize)
+        public virtual byte[] Serialize<T>(T? objectToSerialize)
         {
-            CerasSerializer serializer = null;
+            CerasSerializer? serializer = null;
             try
             {
                 if (!_serializerPool.TryDequeue(out serializer))
@@ -50,13 +50,13 @@ namespace Nuve.DataStore.Serializer.Ceras
             }
         }
 
-        public virtual T Deserialize<T>(byte[] serializedObject)
+        public virtual T? Deserialize<T>(byte[]? serializedObject)
         {
             if (serializedObject == null)
                 return default;
 
 
-            CerasSerializer serializer = null;
+            CerasSerializer? serializer = null;
             try
             {
                 if (!_serializerPool.TryDequeue(out serializer))
@@ -73,12 +73,12 @@ namespace Nuve.DataStore.Serializer.Ceras
             }
         }
 
-        public virtual byte[] Serialize(object objectToSerialize)
+        public virtual byte[] Serialize(object? objectToSerialize, Type type)
         {
             return Serialize<object>(objectToSerialize);
         }
 
-        public virtual object Deserialize(byte[] serializedObject, Type type)
+        public virtual object? Deserialize(byte[]? serializedObject, Type type)
         {
             return Deserialize<object>(serializedObject);
         }

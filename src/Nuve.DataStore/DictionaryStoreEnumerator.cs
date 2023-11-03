@@ -1,55 +1,50 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections;
 
-namespace Nuve.DataStore
+namespace Nuve.DataStore;
+
+internal sealed class DictionaryStoreEnumerator<TValue> : IEnumerator<KeyValuePair<string, TValue?>>
 {
-    internal class DictionaryStoreEnumerator<TValue> : IEnumerator<KeyValuePair<string, TValue>>
+    private int _currentIndex = -1;
+    private readonly long _containerCount = 0;
+    private readonly DictionaryStore<TValue?> _container;
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="container"></param>
+    public DictionaryStoreEnumerator(DictionaryStore<TValue?> container)
     {
-        private int _currentIndex = -1;
-        private readonly long _containerCount = 0;
-        private readonly DictionaryStore<TValue> _container;
+        _container = container;
+        _containerCount = _container.Count();
+    }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="container"></param>
-        public DictionaryStoreEnumerator(DictionaryStore<TValue> container)
-        {
-            _container = container;
-            _containerCount = _container.Count();
-        }
+    public void Dispose()
+    {
+        //Intentionally left blank
+    }
 
-        public void Dispose()
-        {
-        }
+    public bool MoveNext()
+    {
+        _currentIndex++;
+        return _currentIndex < _containerCount;
+    }
 
-        public bool MoveNext()
-        {
-            _currentIndex++;
-            return _currentIndex < _containerCount;
-        }
+    public void Reset()
+    {
+        _currentIndex = 0;
+    }
 
-        public void Reset()
+    public KeyValuePair<string, TValue?> Current
+    {
+        get
         {
-            _currentIndex = 0;
+            var keys = _container.Keys();
+            return new KeyValuePair<string, TValue?>(keys[_currentIndex], _container[keys[_currentIndex]]);
         }
+    }
 
-        public KeyValuePair<string, TValue> Current
-        {
-            get
-            {
-                var keys = _container.Keys();
-                return new KeyValuePair<string, TValue>(keys[_currentIndex], _container[keys[_currentIndex]]);
-            }
-        }
-
-        object IEnumerator.Current
-        {
-            get { return Current; }
-        }
+    object? IEnumerator.Current
+    {
+        get { return Current; }
     }
 }

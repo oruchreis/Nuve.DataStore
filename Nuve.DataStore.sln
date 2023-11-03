@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.28729.10
+# Visual Studio Version 17
+VisualStudioVersion = 17.7.34221.43
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Providers", "Providers", "{9065C4CE-8900-4BC8-B5C7-A75AB025DDBD}"
 EndProject
@@ -18,6 +18,13 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nuve.DataStore.Test", "src\Nuve.DataStore.Test\Nuve.DataStore.Test.csproj", "{428B0B0D-D4CF-4A43-86D4-0A35930382A6}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nuve.DataStore.Serializer.Ceras", "src\Nuve.DataStore.Serializer.Ceras\Nuve.DataStore.Serializer.Ceras.csproj", "{3258C4FF-781C-4B8E-8061-7AF8D8A322B1}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{AE6D08C9-82BF-420B-AC04-163D47A21FDA}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\build.yml = .github\workflows\build.yml
+		Directory.Build.props = Directory.Build.props
+		README.md = README.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

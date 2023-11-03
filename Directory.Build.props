@@ -1,0 +1,16 @@
+<Project>
+	<PropertyGroup>
+	<TargetFrameworks>netstandard2.1;net48</TargetFrameworks>
+	<LangVersion>preview</LangVersion>
+    <Nullable>enable</Nullable>
+	</PropertyGroup>
+	
+	<ItemGroup>
+		<Using Include="System" />
+		<Using Include="System.IO" />
+		<Using Include="System.Collections.Generic" />
+		<Using Include="System.Linq"/>
+		<Using Include="System.Threading"/>
+		<Using Include="System.Threading.Tasks"/>
+	</ItemGroup>
+</Project>

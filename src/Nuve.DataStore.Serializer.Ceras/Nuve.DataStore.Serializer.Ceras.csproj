@@ -2,12 +2,11 @@
 
   <PropertyGroup>
     <AssemblyTitle>Nuve.DataStore.Serializer.Ceras</AssemblyTitle>
-    <AssemblyName>Nuve.DataStore.Serializer.Ceras</AssemblyName>
-    <TargetFrameworks>netstandard2.0;net47</TargetFrameworks>
-    <RuntimeIdentifiers>win7-x64;win7-x86;osx.10.10-x64;osx.10.11-x64;ubuntu.14.04-x64;ubuntu.16.04-x64;centos.7-x64;rhel.7.2-x64;debian.8-x64;fedora.23-x64;opensuse.13.2-x64</RuntimeIdentifiers>
+    <AssemblyName>Nuve.DataStore.Serializer.Ceras</AssemblyName>    
     <PackageId>Nuve.DataStore.Serializer.Ceras</PackageId>
-    <AssemblyVersion>1.1.1</AssemblyVersion>
-    <PackageVersion>1.1.1</PackageVersion>
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0</AssemblyVersion>
+    <FileVersion>1.2.0</FileVersion>
     <PackageProjectUrl>https://github.com/oruchreis/Nuve.DataStore</PackageProjectUrl>
     <RepositoryUrl>https://github.com/oruchreis/Nuve.DataStore.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -22,7 +21,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Ceras" Version="4.0.38" />
+    <PackageReference Include="Ceras" Version="4.1.7" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Nuve.DataStore\Nuve.DataStore.csproj" />

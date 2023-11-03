@@ -10,11 +10,11 @@ namespace Nuve.DataStore
     /// <typeparamref name="TValue"/> tipinde değer tutan Dictionary yapısı.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
-    public sealed class DictionaryStore<TValue> : DataStoreBase, IDictionary<string, TValue>
+    public sealed class DictionaryStore<TValue> : DataStoreBase, IDictionary<string, TValue?>
     {
         private readonly IDictionaryStoreProvider _dictionaryStoreProvider;
-        private static readonly string _valueName = typeof (TValue).GetFriendlyName().Replace('.', '_');
-        private static readonly string _typeName = typeof (DictionaryStore<TValue>).GetFriendlyName();
+        private static readonly string _valueName = typeof(TValue).GetFriendlyName().Replace('.', '_');
+        private static readonly string _typeName = typeof(DictionaryStore<TValue>).GetFriendlyName();
 
         /// <summary>
         /// Dictionary değer tutan store yapısı. 
@@ -28,15 +28,15 @@ namespace Nuve.DataStore
         /// <param name="serializer">Varsayılan serializer yerine başka bir serializer kullanmak istiyorsanız bunu setleyin.</param>
         /// <param name="profiler">Özel olarak sadece bu data store'un metodlarını profile etmek için kullanılır. 
         /// Setlense de setlenmese de <see cref="DataStoreManager"/>'a kayıtlı global profiler kullanılır.</param>
-        public DictionaryStore(string masterKey, string connectionName = null, TimeSpan? defaultExpire = null, bool autoPing = false,
-            string namespaceSeperator = null, string overrideRootNamespace = null, IDataStoreSerializer serializer = null, IDataStoreProfiler profiler = null,
+        public DictionaryStore(string masterKey, string? connectionName = null, TimeSpan? defaultExpire = null, bool autoPing = false,
+            string? namespaceSeperator = null, string? overrideRootNamespace = null, IDataStoreSerializer? serializer = null, IDataStoreCompressor? compressor = null,
+            IDataStoreProfiler? profiler = null,
             int? compressBiggerThan = null) :
-            base(connectionName, defaultExpire, autoPing, namespaceSeperator, overrideRootNamespace, serializer, profiler,compressBiggerThan)
+            base(connectionName, defaultExpire, autoPing, namespaceSeperator, overrideRootNamespace, serializer, compressor, profiler, compressBiggerThan)
         {
-            _dictionaryStoreProvider = Provider as IDictionaryStoreProvider;
-            if (_dictionaryStoreProvider == null)
-                throw new InvalidOperationException($"The provider with connection '{connectionName}' doesn't support Dictionary operations. " +
-                                                    "The provider must implement IDictionaryStoreProvider interface to use DictionaryStore");
+            _dictionaryStoreProvider = Provider as IDictionaryStoreProvider
+                ?? throw new InvalidOperationException($"The provider with connection '{connectionName}' doesn't support Dictionary operations. " +
+                    "The provider must implement IDictionaryStoreProvider interface to use DictionaryStore");
 
             MasterKey = JoinWithRootNamespace($"{masterKey}<{_valueName}>");//tip ismini eklememiz şart. Çünkü aynı masterKey'de farklı tipte olan listeler deserialize olamaz.
         }
@@ -54,7 +54,7 @@ namespace Nuve.DataStore
         /// <returns></returns>
         public async Task<bool> IsExistsAsync()
         {
-            using (new ProfileScope(this,MasterKey))
+            using (new ProfileScope(this, MasterKey))
             {
                 return await _dictionaryStoreProvider.IsExistsAsync(MasterKey);
             }
@@ -135,7 +135,7 @@ namespace Nuve.DataStore
         /// <returns></returns>
         public async Task<bool> ClearAsync()
         {
-            using (new ProfileScope(this,MasterKey))
+            using (new ProfileScope(this, MasterKey))
             {
                 return await Provider.RemoveAsync(MasterKey);
             }
@@ -185,7 +185,7 @@ namespace Nuve.DataStore
         /// <param name="key"></param>
         /// <param name="value"></param>
         /// <returns></returns>
-        public async Task<bool> ContainsAsync(string key, TValue value)
+        public async Task<bool> ContainsAsync(string key, TValue? value)
         {
             using (new ProfileScope(this, key))
             {
@@ -196,7 +196,7 @@ namespace Nuve.DataStore
                                                if (!keyExists)
                                                    return await Task.FromResult(false);
 
-                                               return await Task.FromResult(EqualityComparer<TValue>.Default.Equals(await GetAsync(key), value));
+                                               return await Task.FromResult(EqualityComparer<TValue?>.Default.Equals(await GetAsync(key), value));
                                            });
             }
         }
@@ -207,7 +207,7 @@ namespace Nuve.DataStore
         /// <param name="key"></param>
         /// <param name="value"></param>
         /// <returns></returns>
-        public bool Contains(string key, TValue value)
+        public bool Contains(string key, TValue? value)
         {
             using (new ProfileScope(this, key))
             {
@@ -218,7 +218,7 @@ namespace Nuve.DataStore
                                   if (!keyExists)
                                       return false;
 
-                                  return EqualityComparer<TValue>.Default.Equals(Get(key), value);
+                                  return EqualityComparer<TValue?>.Default.Equals(Get(key), value);
                               });
             }
         }
@@ -229,7 +229,7 @@ namespace Nuve.DataStore
         /// <param name="array"></param>
         /// <param name="arrayIndex"></param>
         /// <returns></returns>
-        public async Task CopyToAsync(KeyValuePair<string, TValue>[] array, int arrayIndex)
+        public async Task CopyToAsync(KeyValuePair<string, TValue?>[] array, int arrayIndex)
         {
             await CheckAutoPing(async () =>
                           {
@@ -244,13 +244,13 @@ namespace Nuve.DataStore
         /// <param name="array"></param>
         /// <param name="arrayIndex"></param>
         /// <returns></returns>
-        public void CopyTo(KeyValuePair<string, TValue>[] array, int arrayIndex)
+        public void CopyTo(KeyValuePair<string, TValue?>[] array, int arrayIndex)
         {
             CheckAutoPing(() =>
                           {
                               var dict = ToDictionary();
                               dict.CopyTo(array, arrayIndex);
-                          });            
+                          });
         }
 
         /// <summary>
@@ -260,7 +260,7 @@ namespace Nuve.DataStore
         /// <returns></returns>
         public async Task<long> RemoveAsync(params string[] keys)
         {
-            using (new ProfileScope(this,MasterKey))
+            using (new ProfileScope(this, MasterKey))
             {
                 return await CheckAutoPing(async () => await _dictionaryStoreProvider.RemoveAsync(MasterKey, keys));
             }
@@ -284,11 +284,11 @@ namespace Nuve.DataStore
         /// </summary>
         /// <param name="key"></param>
         /// <returns></returns>
-        public async Task<TValue> GetAsync(string key)
+        public async Task<TValue?> GetAsync(string key)
         {
             using (new ProfileScope(this, key))
             {
-                return await CheckAutoPing(async () => SingleResult<TValue>(await _dictionaryStoreProvider.GetAsync(MasterKey, key)));
+                return await CheckAutoPing(async () => SingleResult<TValue?>(await _dictionaryStoreProvider.GetAsync(MasterKey, key)));
             }
         }
 
@@ -297,11 +297,11 @@ namespace Nuve.DataStore
         /// </summary>
         /// <param name="key"></param>
         /// <returns></returns>
-        public TValue Get(string key)
+        public TValue? Get(string key)
         {
             using (new ProfileScope(this, key))
             {
-                return CheckAutoPing(() => SingleResult<TValue>(_dictionaryStoreProvider.Get(MasterKey, key)));
+                return CheckAutoPing(() => SingleResult<TValue?>(_dictionaryStoreProvider.Get(MasterKey, key)));
             }
         }
 
@@ -310,24 +310,24 @@ namespace Nuve.DataStore
         /// </summary>
         /// <param name="keys"></param>
         /// <returns></returns>
-        public async Task<IDictionary<string, TValue>> GetAsync(params string[] keys)
-        {
-            using (new ProfileScope(this,MasterKey))
-            {
-                return await CheckAutoPing(async () => DictionaryResult<TValue>(await _dictionaryStoreProvider.GetAsync(MasterKey, keys)));
-            }
-        }
-
-        /// <summary>
-        /// Birden fazla key'in değerini getirir. Birden fazla key sorgusu için bunu kullanın.
-        /// </summary>
-        /// <param name="keys"></param>
-        /// <returns></returns>
-        public IDictionary<string, TValue> Get(params string[] keys)
+        public async Task<IDictionary<string, TValue?>> GetAsync(params string[] keys)
         {
             using (new ProfileScope(this, MasterKey))
             {
-                return CheckAutoPing(() => DictionaryResult<TValue>(_dictionaryStoreProvider.Get(MasterKey, keys)));
+                return await CheckAutoPing(async () => DictionaryResult<TValue?>(await _dictionaryStoreProvider.GetAsync(MasterKey, keys)));
+            }
+        }
+
+        /// <summary>
+        /// Birden fazla key'in değerini getirir. Birden fazla key sorgusu için bunu kullanın.
+        /// </summary>
+        /// <param name="keys"></param>
+        /// <returns></returns>
+        public IDictionary<string, TValue?> Get(params string[] keys)
+        {
+            using (new ProfileScope(this, MasterKey))
+            {
+                return CheckAutoPing(() => DictionaryResult<TValue?>(_dictionaryStoreProvider.Get(MasterKey, keys)));
             }
         }
 
@@ -338,7 +338,7 @@ namespace Nuve.DataStore
         /// <param name="value"></param>
         /// <param name="overwrite">Üzerine yazılsın mı?</param>
         /// <returns></returns>
-        public async Task<bool> SetAsync(string key, TValue value, bool overwrite = true)
+        public async Task<bool> SetAsync(string key, TValue? value, bool overwrite = true)
         {
             using (new ProfileScope(this, key))
             {
@@ -353,7 +353,7 @@ namespace Nuve.DataStore
         /// <param name="value"></param>
         /// <param name="overwrite">Üzerine yazılsın mı?</param>
         /// <returns></returns>
-        public bool Set(string key, TValue value, bool overwrite = true)
+        public bool Set(string key, TValue? value, bool overwrite = true)
         {
             using (new ProfileScope(this, key))
             {
@@ -367,9 +367,9 @@ namespace Nuve.DataStore
         /// <param name="keyValues"></param>
         /// <param name="overwrite">Üzerine yazılsın mı?</param>
         /// <returns></returns>
-        public async Task SetAsync(IDictionary<string, TValue> keyValues, bool overwrite = true)
+        public async Task SetAsync(IDictionary<string, TValue?> keyValues, bool overwrite = true)
         {
-            using (new ProfileScope(this,MasterKey))
+            using (new ProfileScope(this, MasterKey))
             {
                 await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, AsKeyValue(keyValues)));
             }
@@ -381,7 +381,7 @@ namespace Nuve.DataStore
         /// <param name="keyValues"></param>
         /// <param name="overwrite">Üzerine yazılsın mı?</param>
         /// <returns></returns>
-        public void Set(IDictionary<string, TValue> keyValues, bool overwrite = true)
+        public void Set(IDictionary<string, TValue?> keyValues, bool overwrite = true)
         {
             using (new ProfileScope(this, MasterKey))
             {
@@ -395,7 +395,7 @@ namespace Nuve.DataStore
         /// <returns></returns>
         public async Task<long> CountAsync()
         {
-            using (new ProfileScope(this,MasterKey))
+            using (new ProfileScope(this, MasterKey))
             {
                 return await CheckAutoPing(async () => await _dictionaryStoreProvider.CountAsync(MasterKey));
             }
@@ -417,11 +417,11 @@ namespace Nuve.DataStore
         /// İçeriği <see cref="Dictionary{TKey,TValue}"/> şeklinde çıktı verir.
         /// </summary>
         /// <returns></returns>
-        public async Task<IDictionary<string, TValue>> ToDictionaryAsync()
+        public async Task<IDictionary<string, TValue?>> ToDictionaryAsync()
         {
-            using (new ProfileScope(this,MasterKey))
+            using (new ProfileScope(this, MasterKey))
             {
-                return await CheckAutoPing(async () => DictionaryResult<TValue>(await _dictionaryStoreProvider.GetDictionaryAsync(MasterKey)));
+                return await CheckAutoPing(async () => DictionaryResult<TValue?>(await _dictionaryStoreProvider.GetDictionaryAsync(MasterKey)));
             }
         }
 
@@ -429,11 +429,11 @@ namespace Nuve.DataStore
         /// İçeriği <see cref="Dictionary{TKey,TValue}"/> şeklinde çıktı verir.
         /// </summary>
         /// <returns></returns>
-        public IDictionary<string, TValue> ToDictionary()
+        public IDictionary<string, TValue?> ToDictionary()
         {
             using (new ProfileScope(this, MasterKey))
             {
-                return CheckAutoPing(() => DictionaryResult<TValue>(_dictionaryStoreProvider.GetDictionary(MasterKey)));
+                return CheckAutoPing(() => DictionaryResult<TValue?>(_dictionaryStoreProvider.GetDictionary(MasterKey)));
             }
         }
 
@@ -443,7 +443,7 @@ namespace Nuve.DataStore
         /// <returns></returns>
         public async Task<IList<string>> KeysAsync()
         {
-            using (new ProfileScope(this,MasterKey))
+            using (new ProfileScope(this, MasterKey))
             {
                 return await CheckAutoPing(async () => await _dictionaryStoreProvider.KeysAsync(MasterKey));
             }
@@ -465,11 +465,11 @@ namespace Nuve.DataStore
         /// Store'daki değerleri döner.
         /// </summary>
         /// <returns></returns>
-        public async Task<IList<TValue>> ValuesAsync()
+        public async Task<IList<TValue?>> ValuesAsync()
         {
-            using (new ProfileScope(this,MasterKey))
+            using (new ProfileScope(this, MasterKey))
             {
-                return await CheckAutoPing(async () => ListResult<TValue>(await _dictionaryStoreProvider.ValuesAsync(MasterKey)));
+                return await CheckAutoPing(async () => ListResult<TValue?>(await _dictionaryStoreProvider.ValuesAsync(MasterKey)));
             }
         }
 
@@ -477,11 +477,11 @@ namespace Nuve.DataStore
         /// Store'daki değerleri döner.
         /// </summary>
         /// <returns></returns>
-        public IList<TValue> Values()
+        public IList<TValue?> Values()
         {
             using (new ProfileScope(this, MasterKey))
             {
-                return CheckAutoPing(() => ListResult<TValue>(_dictionaryStoreProvider.Values(MasterKey)));
+                return CheckAutoPing(() => ListResult<TValue?>(_dictionaryStoreProvider.Values(MasterKey)));
             }
         }
 
@@ -578,9 +578,9 @@ namespace Nuve.DataStore
         }
 
         #region IDictionary<string, TValue>
-        public IEnumerator<KeyValuePair<string, TValue>> GetEnumerator()
+        public IEnumerator<KeyValuePair<string, TValue?>> GetEnumerator()
         {
-            return new DictionaryStoreEnumerator<TValue>(this);
+            return new DictionaryStoreEnumerator<TValue?>(this);
         }
 
         IEnumerator IEnumerable.GetEnumerator()
@@ -588,27 +588,27 @@ namespace Nuve.DataStore
             return GetEnumerator();
         }
 
-        public void Add(KeyValuePair<string, TValue> item)
+        public void Add(KeyValuePair<string, TValue?> item)
         {
             Set(item.Key, item.Value);
         }
 
-        public void Add(string key, TValue value)
+        public void Add(string key, TValue? value)
         {
             Set(key, value);
         }
 
-        void ICollection<KeyValuePair<string, TValue>>.Clear()
+        void ICollection<KeyValuePair<string, TValue?>>.Clear()
         {
             Clear();
         }
 
-        public bool Contains(KeyValuePair<string, TValue> item)
+        public bool Contains(KeyValuePair<string, TValue?> item)
         {
             return Contains(item.Key, item.Value);
         }
 
-        public bool Remove(KeyValuePair<string, TValue> item)
+        public bool Remove(KeyValuePair<string, TValue?> item)
         {
             if (Contains(item))
             {
@@ -617,7 +617,7 @@ namespace Nuve.DataStore
             return false;
         }
 
-        int ICollection<KeyValuePair<string, TValue>>.Count
+        int ICollection<KeyValuePair<string, TValue?>>.Count
         {
             get
             {
@@ -627,16 +627,16 @@ namespace Nuve.DataStore
 
         public bool IsReadOnly => false;
 
-        bool IDictionary<string, TValue>.Remove(string key)
+        bool IDictionary<string, TValue?>.Remove(string key)
         {
             return Remove(key) > 0;
         }
 
-        public bool TryGetValue(string key, out TValue value)
+        public bool TryGetValue(string key, out TValue? value)
         {
             if (!ContainsKey(key))
             {
-                value = default(TValue);
+                value = default;
                 return false;
             }
 
@@ -644,15 +644,15 @@ namespace Nuve.DataStore
             return true;
         }
 
-        public TValue this[string key]
+        public TValue? this[string key]
         {
             get { return Get(key); }
             set { Set(key, value); }
         }
 
-        ICollection<string> IDictionary<string, TValue>.Keys => Keys();
+        ICollection<string> IDictionary<string, TValue?>.Keys => Keys();
 
-        ICollection<TValue> IDictionary<string, TValue>.Values => Values();
+        ICollection<TValue?> IDictionary<string, TValue?>.Values => Values();
 
         #endregion
     }

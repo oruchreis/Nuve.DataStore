@@ -1,58 +1,53 @@
-﻿#if NET47
-using System.Collections.Generic;
+﻿#if NET48
 using System.Configuration;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Nuve.DataStore.Configuration
+namespace Nuve.DataStore.Configuration;
+
+internal class DataStoreConfigurationSection: ConfigurationSection
 {
-    internal class DataStoreConfigurationSection: ConfigurationSection
+    private const string ConfigPath = "dataStore";
+
+    public static DataStoreConfigurationSection GetConfiguration()
     {
-        private const string ConfigPath = "dataStore";
+        return (DataStoreConfigurationSection)ConfigurationManager.GetSection(ConfigPath);
+    }
 
-        public static DataStoreConfigurationSection GetConfiguration()
+    [ConfigurationProperty("defaultSerializer", IsRequired = false, IsKey = true)]
+    public string DefaultSerializer
+    {
+        get
         {
-            return (DataStoreConfigurationSection)ConfigurationManager.GetSection(ConfigPath);
+            return (string)this["defaultSerializer"];
         }
-
-        [ConfigurationProperty("defaultSerializer", IsRequired = false, IsKey = true)]
-        public string DefaultSerializer
+        set
         {
-            get
-            {
-                return (string)this["defaultSerializer"];
-            }
-            set
-            {
-                this["defaultSerializer"] = value;
-            }
+            this["defaultSerializer"] = value;
         }
+    }
 
-        [ConfigurationProperty("connections", IsDefaultCollection = true)]
-        [ConfigurationCollection(typeof(ConnectionConfigurationCollection),
-            AddItemName = "add",
-            ClearItemsName = "clear",
-            RemoveItemName = "remove")]
-        public ConnectionConfigurationCollection Connections
+    [ConfigurationProperty("connections", IsDefaultCollection = true)]
+    [ConfigurationCollection(typeof(ConnectionConfigurationCollection),
+        AddItemName = "add",
+        ClearItemsName = "clear",
+        RemoveItemName = "remove")]
+    public ConnectionConfigurationCollection Connections
+    {
+        get
         {
-            get
-            {
-                return (ConnectionConfigurationCollection)base["connections"];
-            }
+            return (ConnectionConfigurationCollection)base["connections"];
         }
+    }
 
-        [ConfigurationProperty("providers", IsRequired = true)]
-        [ConfigurationCollection(typeof(NameValueConfigurationCollection),
-            AddItemName = "add",
-            ClearItemsName = "clear",
-            RemoveItemName = "remove")]
-        public NameValueConfigurationCollection Providers
+    [ConfigurationProperty("providers", IsRequired = true)]
+    [ConfigurationCollection(typeof(NameValueConfigurationCollection),
+        AddItemName = "add",
+        ClearItemsName = "clear",
+        RemoveItemName = "remove")]
+    public NameValueConfigurationCollection Providers
+    {
+        get
         {
-            get
-            {
-                return (NameValueConfigurationCollection)this["providers"];
-            }
+            return (NameValueConfigurationCollection)this["providers"];
         }
     }
 }

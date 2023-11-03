@@ -1,5 +1,4 @@
-﻿#if NET47
-using System;
+﻿#if NET48
 using System.Configuration;
 
 namespace Nuve.DataStore.Configuration

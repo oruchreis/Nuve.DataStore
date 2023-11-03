@@ -1,81 +1,80 @@
-#if NET47
+#if NET48
 using System.Configuration;
 
-namespace Nuve.DataStore.Configuration
+namespace Nuve.DataStore.Configuration;
+
+internal class ConnectionConfigurationElement : ConfigurationElement
 {
-    internal class ConnectionConfigurationElement : ConfigurationElement
+    [ConfigurationProperty("name", IsRequired = true, IsKey = true)]
+    public string Name
     {
-        [ConfigurationProperty("name", IsRequired = true, IsKey = true)]
-        public string Name
+        get
         {
-            get
-            {
-                return (string)this["name"];
-            }
-            set
-            {
-                this["name"] = value;
-            }
+            return (string)this["name"];
         }
+        set
+        {
+            this["name"] = value;
+        }
+    }
 
-        [ConfigurationProperty("provider", IsRequired = true, IsKey = true)]
-        public string ProviderName
+    [ConfigurationProperty("provider", IsRequired = true, IsKey = true)]
+    public string ProviderName
+    {
+        get
         {
-            get
-            {
-                return (string)this["provider"];
-            }
-            set
-            {
-                this["provider"] = value;
-            }
+            return (string)this["provider"];
         }
+        set
+        {
+            this["provider"] = value;
+        }
+    }
 
-        [ConfigurationProperty("connectionString", IsRequired = true, IsKey = true)]
-        public string ConnectionString
+    [ConfigurationProperty("connectionString", IsRequired = true, IsKey = true)]
+    public string ConnectionString
+    {
+        get
         {
-            get
-            {
-                return (string)this["connectionString"];
-            }
-            set
-            {
-                this["connectionString"] = value;
-            }
+            return (string)this["connectionString"];
         }
+        set
+        {
+            this["connectionString"] = value;
+        }
+    }
 
-        [ConfigurationProperty("namespace", IsRequired = false, IsKey = true)]
-        public string Namespace
+    [ConfigurationProperty("namespace", IsRequired = false, IsKey = true)]
+    public string Namespace
+    {
+        get
         {
-            get
-            {
-                return (string)this["namespace"];
-            }
-            set
-            {
-                this["namespace"] = value;
-            }
+            return (string)this["namespace"];
         }
+        set
+        {
+            this["namespace"] = value;
+        }
+    }
 
-        [ConfigurationProperty("default", IsRequired = false, IsKey = true)]
-        public bool IsDefault
+    [ConfigurationProperty("default", IsRequired = false, IsKey = true)]
+    public bool IsDefault
+    {
+        get
         {
-            get
-            {
-                return ((bool?)this["default"]) ?? false;
-            }
-            set
-            {
-                this["default"] = value;
-            }
+            return ((bool?)this["default"]) ?? false;
         }
+        set
+        {
+            this["default"] = value;
+        }
+    }
 
-        [ConfigurationProperty("compressBiggerThan", IsRequired = false, IsKey = true)]
-        public int? CompressBiggerThan
-        {
-            get => (int?)this["compressBiggerThan"];
-            set => this["compressBiggerThan"] = value;
-        }
+    [ConfigurationProperty("compressBiggerThan", IsRequired = false, IsKey = true)]
+    public int? CompressBiggerThan
+    {
+        get => (int?)this["compressBiggerThan"];
+        set => this["compressBiggerThan"] = value;
     }
 }
 #endif

@@ -10,46 +10,44 @@ namespace Nuve.DataStore.Serializer.JsonNet
         protected readonly JsonSerializerSettings Settings;
 
         public JsonNetDataStoreSerializer()
-            :this(null)
+            : this(new JsonSerializerSettings
+            {
+                TypeNameHandling = TypeNameHandling.Auto, //bunun ile $type etiketi eklenip polimorfik objelere izin veriliyor.
+                ObjectCreationHandling = ObjectCreationHandling.Replace, // bu olmazsa ctor'daki default değerlere ekleme yapar.
+                ContractResolver = new NoConstructorCreationContractResolver(),
+                ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+                PreserveReferencesHandling = PreserveReferencesHandling.Objects,
+            })
         {
-            
+
         }
 
-        public JsonNetDataStoreSerializer(object settings = null)
+        public JsonNetDataStoreSerializer(JsonSerializerSettings settings)
         {
-            Settings = (settings as JsonSerializerSettings) ??
-                                      new JsonSerializerSettings
-                                      {
-                                          TypeNameHandling = TypeNameHandling.Auto, //bunun ile $type etiketi eklenip polimorfik objelere izin veriliyor.
-                                          ObjectCreationHandling = ObjectCreationHandling.Replace, // bu olmazsa ctor'daki default değerlere ekleme yapar.
-                                          ContractResolver = new NoConstructorCreationContractResolver(),
-                                          ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
-                                          PreserveReferencesHandling = PreserveReferencesHandling.Objects,
-                                          
-                                      };
+            Settings = settings;
         }
 
-        public virtual byte[] Serialize<T>(T objectToSerialize)
+        public virtual byte[] Serialize<T>(T? objectToSerialize)
         {
             return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(objectToSerialize, Settings));
         }
 
-        public virtual T Deserialize<T>(byte[] serializedObject)
+        public virtual T? Deserialize<T>(byte[]? serializedObject)
         {
-            if (serializedObject == null)
-                return default(T);
+            if (serializedObject == null || serializedObject.Length == 0)
+                return default;
             var str = Encoding.UTF8.GetString(serializedObject);
             if (string.IsNullOrEmpty(str))
-                return default(T);
+                return default;
             return JsonConvert.DeserializeObject<T>(str, Settings);
         }
 
-        public virtual byte[] Serialize(object objectToSerialize)
+        public virtual byte[] Serialize(object? objectToSerialize, Type type)
         {
             return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(objectToSerialize, Settings));
         }
 
-        public virtual object Deserialize(byte[] serializedObject, Type type)
+        public virtual object? Deserialize(byte[]? serializedObject, Type type)
         {
             if (serializedObject == null)
                 return type.IsValueType ? Activator.CreateInstance(type) : null;

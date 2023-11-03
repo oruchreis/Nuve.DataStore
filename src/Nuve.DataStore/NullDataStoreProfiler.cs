@@ -1,25 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace Nuve.DataStore;
 
-namespace Nuve.DataStore
+internal class NullDataStoreProfiler: IDataStoreProfiler
 {
-    internal class NullDataStoreProfiler: IDataStoreProfiler
+    public object? Begin(string method, string? key)
     {
-        public object Begin(string method, string key)
-        {
-            return null;
-        }
+        return null;
+    }
 
-        public void Finish(object context, params DataStoreProfileResult[] result)
-        {
-        }
+    public void Finish(object? context, params DataStoreProfileResult[] results)
+    {
+        //Intentionally left blank
+    }
 
-        public object GetContext()
-        {
-            return null;
-        }
+    public object? GetContext()
+    {
+        return null;
     }
 }
