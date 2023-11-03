@@ -4,9 +4,9 @@
     <AssemblyTitle>Nuve.DataStore.Serializer.Ceras</AssemblyTitle>
     <AssemblyName>Nuve.DataStore.Serializer.Ceras</AssemblyName>    
     <PackageId>Nuve.DataStore.Serializer.Ceras</PackageId>
-    <Version>1.2.1</Version>
-    <AssemblyVersion>1.2.1</AssemblyVersion>
-    <FileVersion>1.2.1</FileVersion>
+    <Version>1.2.2</Version>
+    <AssemblyVersion>1.2.2</AssemblyVersion>
+    <FileVersion>1.2.2</FileVersion>
     <PackageProjectUrl>https://github.com/oruchreis/Nuve.DataStore</PackageProjectUrl>
     <RepositoryUrl>https://github.com/oruchreis/Nuve.DataStore.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

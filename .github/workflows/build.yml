@@ -58,5 +58,6 @@ jobs:
       uses: alirezanet/publish-nuget@v3.0.4
       with:
         PROJECT_FILE_PATH: src/${{ matrix.project }}/${{ matrix.project }}.csproj
+        INCLUDE_SYMBOLS: true
         NUGET_KEY: ${{secrets.NUGET_API_KEY}}
         TAG_FORMAT: v*
