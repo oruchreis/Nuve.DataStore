@@ -175,10 +175,9 @@ public abstract class DataStoreBase
         Array.Copy(compressed, _compressor.Signature.Length, compressedData, 0, compressedData.Length);            
 #else
         var compressedSpanWithSignature = compressed.AsSpan();
-        if (!compressedSpanWithSignature[.._compressor.Signature.Length].SequenceEqual(_compressor.Signature.AsSpan()))
-            return compressed;
-        if (compressedSpanWithSignature.Length - _compressor.Signature.Length <= 0)
-            return Array.Empty<byte>();
+        if (compressedSpanWithSignature.Length < _compressor.Signature.Length ||
+            !compressedSpanWithSignature[.._compressor.Signature.Length].SequenceEqual(_compressor.Signature.AsSpan()))
+            return compressed;        
         var compressedData = compressedSpanWithSignature[_compressor.Signature.Length..].ToArray();
 #endif
 
