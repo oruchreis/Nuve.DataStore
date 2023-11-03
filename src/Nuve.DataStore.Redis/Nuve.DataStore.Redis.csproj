@@ -3,9 +3,9 @@
     <AssemblyTitle>Nuve.DataStore.Redis</AssemblyTitle>
     <AssemblyName>Nuve.DataStore.Redis</AssemblyName>
     <PackageId>Nuve.DataStore.Redis</PackageId>
-    <Version>1.2.0</Version>
-    <AssemblyVersion>1.2.0</AssemblyVersion>
-    <FileVersion>1.2.0</FileVersion>
+    <Version>1.2.1</Version>
+    <AssemblyVersion>1.2.1</AssemblyVersion>
+    <FileVersion>1.2.1</FileVersion>
     <PackageProjectUrl>https://github.com/oruchreis/Nuve.DataStore</PackageProjectUrl>
     <RepositoryUrl>https://github.com/oruchreis/Nuve.DataStore.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

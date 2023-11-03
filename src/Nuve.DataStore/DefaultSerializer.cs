@@ -35,7 +35,7 @@ namespace Nuve.DataStore
                     Args = m.GetGenericArguments()
                 })
                 .Where(x => x.Params.Length == 2
-                            && x.Args.Length == 1
+                            && x.Args.Length == 0
                             && x.Params[1].ParameterType == typeof(Type))
                 .Select(x => x.Method)
                 .First();

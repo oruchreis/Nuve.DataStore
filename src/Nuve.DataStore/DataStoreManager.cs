@@ -120,7 +120,7 @@ public static class DataStoreManager
         }
     }
 
-    private static IDataStoreSerializer _defaultSerializer;
+    private static Lazy<IDataStoreSerializer> _defaultSerializer;
     private static readonly ReaderWriterLockSlim _defaultSerializerLocker = new ReaderWriterLockSlim();
 
     /// <summary>
@@ -134,7 +134,7 @@ public static class DataStoreManager
             _defaultSerializerLocker.EnterReadLock();
             try
             {
-                return _defaultSerializer;
+                return _defaultSerializer.Value;
             }
             finally
             {
@@ -146,7 +146,7 @@ public static class DataStoreManager
             _defaultSerializerLocker.EnterWriteLock();
             try
             {
-                _defaultSerializer = value;
+                _defaultSerializer = new (()=>value);
             }
             finally
             {
@@ -155,8 +155,8 @@ public static class DataStoreManager
         }
     }
 
-    private static IDataStoreCompressor _defaultCompressor;
-    private static readonly ReaderWriterLockSlim _defaultCompressorLocker = new ReaderWriterLockSlim();
+    private static Lazy<IDataStoreCompressor> _defaultCompressor;
+    private static readonly ReaderWriterLockSlim _defaultCompressorLocker = new();
 
     /// <summary>
     /// Tüm DataStore işlemlerinde kullanılacak varsayılan compressor'u getirmek ya da değiştirmek için kullanılır.
@@ -169,7 +169,7 @@ public static class DataStoreManager
             _defaultCompressorLocker.EnterReadLock();
             try
             {
-                return _defaultCompressor;
+                return _defaultCompressor.Value;
             }
             finally
             {
@@ -181,7 +181,7 @@ public static class DataStoreManager
             _defaultCompressorLocker.EnterWriteLock();
             try
             {
-                _defaultCompressor = value;
+                _defaultCompressor = new (()=>value);
             }
             finally
             {
@@ -231,8 +231,8 @@ public static class DataStoreManager
         }
 #endif
 
-        _defaultSerializer ??= new DefaultSerializer();
-        _defaultCompressor ??= new DeflateCompressor();
+        _defaultSerializer ??= new Lazy<IDataStoreSerializer>(() => new DefaultSerializer());
+        _defaultCompressor ??= new Lazy<IDataStoreCompressor>(() => new DeflateCompressor());
     }
 
     internal static void GetProvider(string? connectionName, out IDataStoreProvider provider, out string rootNamespace, out int? compressBiggerThan)
@@ -252,7 +252,7 @@ public static class DataStoreManager
         }
     }
 
-    private static readonly ReaderWriterLockSlim _globalProfilerLocker = new ReaderWriterLockSlim();
+    private static readonly ReaderWriterLockSlim _globalProfilerLocker = new();
     private static IDataStoreProfiler _globalProfiler = new NullDataStoreProfiler();
     /// <summary>
     /// Tüm datastore yapılarını profile etmek için kullanılan profiler'ı kaydeder.
