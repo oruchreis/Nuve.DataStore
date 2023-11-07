@@ -1,100 +1,117 @@
 ﻿using StackExchange.Redis;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
-namespace Nuve.DataStore.Redis
+namespace Nuve.DataStore.Redis;
+
+
+/// <summary>
+/// Normal servicestack redis tanımlamasına bizim eklediğimiz extension'lar...
+/// </summary>
+public static class RedisExtension
 {
-
     /// <summary>
-    /// Normal servicestack redis tanımlamasına bizim eklediğimiz extension'lar...
+    /// Normal lock metoduna expire eklenmiş hali. Kilitli keyler silinmediği sürece kalıcıdırlar. Bunun için lock key'lerine de expire ekliyoruz.
     /// </summary>
-    public static class RedisExtension
+    /// <param name="client"></param>
+    /// <param name="key"></param>
+    /// <param name="timeout"></param>
+    /// <param name="lockExpire"></param>
+    /// <returns></returns>
+    public static IDisposable AcquireLock(this IDatabase redis, string key, TimeSpan timeout, TimeSpan lockExpire)
     {
-        /// <summary>
-        /// Normal lock metoduna expire eklenmiş hali. Kilitli keyler silinmediği sürece kalıcıdırlar. Bunun için lock key'lerine de expire ekliyoruz.
-        /// </summary>
-        /// <param name="client"></param>
-        /// <param name="key"></param>
-        /// <param name="timeout"></param>
-        /// <param name="lockExpire"></param>
-        /// <returns></returns>
-        public static IDisposable AcquireLock(this IDatabase redis, string key, TimeSpan timeout, TimeSpan lockExpire)
+        var locker = new Lock(redis, key, timeout, lockExpire);
+        locker.TryAcquireLock();
+        return locker;
+    }
+
+    public static async Task<IDisposable> AcquireLockAsync(this IDatabase redis, string key, TimeSpan timeout, TimeSpan lockExpire)
+    {
+        var locker = new Lock(redis, key, timeout, lockExpire);
+        await locker.TryAcquireLockAsync();
+        return locker;
+    }
+
+    private sealed class Lock : IDisposable
+    {
+        private static readonly TimeSpan _sleepTime = TimeSpan.FromMilliseconds(200);
+        private readonly IDatabase _redis;
+        private readonly string _key;
+        private readonly TimeSpan _timeout;
+        private readonly TimeSpan _lockExpire;
+        private readonly string _token = Guid.NewGuid().ToString();
+        public Lock(IDatabase redis, string key, TimeSpan timeout, TimeSpan lockExpire)
         {
-            var locker = new Lock(redis, key, timeout, lockExpire);
-            locker.AcquireLock();
-            return locker;
+            _redis = redis;
+            _key = key;
+            _timeout = timeout;
+            _lockExpire = lockExpire;
         }
 
-        public static async Task<IDisposable> AcquireLockAsync(this IDatabase redis, string key, TimeSpan timeout, TimeSpan lockExpire)
+        public void TryAcquireLock()
         {
-            var locker = new Lock(redis, key, timeout, lockExpire);
-            await locker.AcquireLockAsync();
-            return locker;
+            var lockAchieved = _redis.LockTake(_key, _token, _lockExpire);
+            if (lockAchieved)
+                return;
+            using var cts = new CancellationTokenSource(_timeout);
+            var timedout = false;
+            cts.Token.Register(() => timedout = true);
+            var loopCount = 1;
+            while (!lockAchieved && !cts.IsCancellationRequested)
+            {
+#if NET48
+                Thread.Sleep(TimeSpan.FromTicks(_sleepTime.Ticks * Math.Min(loopCount, 10))); //waiting maximum 10 times of _sleepTime
+#else
+                Thread.Sleep(_sleepTime * Math.Min(loopCount, 10)); //waiting maximum 10 times of _sleepTime
+#endif
+                lockAchieved = _redis.LockTake(_key, _token, _lockExpire);
+                loopCount++;
+            }
+            if (timedout && !lockAchieved)
+                throw new TimeoutException($"The key '{_key}' has remained locked during timeout.")
+                {
+                    Data = {
+                        ["Connection"] = _redis.Multiplexer.Configuration,
+                        ["Key"] = _key,
+                        ["Retry Count"] = loopCount,
+                        ["Timeout"] = _timeout
+                    }
+                };
         }
 
-        private class Lock : IDisposable
+        public async Task TryAcquireLockAsync()
         {
-            private static readonly TimeSpan _sleepTime = TimeSpan.FromMilliseconds(100);
-            private readonly IDatabase _redis;
-            private readonly string _key;
-            private readonly TimeSpan _timeout;
-            private readonly TimeSpan _lockExpire;
-            private readonly string _token = Guid.NewGuid().ToString();
-            public Lock(IDatabase redis, string key, TimeSpan timeout, TimeSpan lockExpire)
+            var lockAchieved = await _redis.LockTakeAsync(_key, _token, _lockExpire);
+            if (lockAchieved)
+                return;
+            using var cts = new CancellationTokenSource(_timeout);
+            var timedout = false;
+            cts.Token.Register(() => timedout = true);
+            var loopCount = 1;
+            while (!lockAchieved && !cts.IsCancellationRequested)
             {
-                _redis = redis;
-                _key = key;
-                _timeout = timeout;
-                _lockExpire = lockExpire;
+#if NET48
+                await Task.Delay(TimeSpan.FromTicks(_sleepTime.Ticks * Math.Min(loopCount, 10))); //waiting maximum 10 times of _sleepTime
+#else
+                await Task.Delay(_sleepTime * Math.Min(loopCount, 10)); //waiting maximum 10 times of _sleepTime
+#endif
+                lockAchieved = await _redis.LockTakeAsync(_key, _token, _lockExpire);
+                loopCount++;
             }
-
-            public void AcquireLock()
-            {
-                var lockAchieved = false;
-                var totalTime = TimeSpan.Zero;
-                while (!lockAchieved && totalTime < _timeout)
+            if (timedout && !lockAchieved)
+                throw new TimeoutException($"The key '{_key}' has remained locked during timeout.")
                 {
-                    lockAchieved = _redis.LockTake(_key, _token, _lockExpire);
-                    if (lockAchieved)
-                    {
-                        continue;
+                    Data = {
+                        ["Connection"] = _redis.Multiplexer.Configuration,
+                        ["Key"] = _key,
+                        ["Retry Count"] = loopCount,
+                        ["Timeout"] = _timeout
                     }
-                    Thread.Sleep(_sleepTime);
-                    totalTime += _sleepTime;
-                }
+                };
+        }
 
-                if (!lockAchieved)
-                    throw new TimeoutException(string.Format("{0} anahtarı timeout süresince kilitli kaldı.", _key));
-            }
-
-            public async Task AcquireLockAsync()
-            {
-                var lockAchieved = false;
-                var totalTime = TimeSpan.Zero;
-                while (!lockAchieved && totalTime < _timeout)
-                {
-                    lockAchieved = await _redis.LockTakeAsync(_key, _token, _lockExpire);
-                    if (lockAchieved)
-                    {
-                        continue;
-                    }
-                    await Task.Delay(_sleepTime);
-                    totalTime += _sleepTime;
-                }
-
-                if (!lockAchieved)
-                    throw new TimeoutException(string.Format("{0} anahtarı timeout süresince kilitli kaldı.", _key));
-            }
-
-            public void Dispose()
-            {
-                _redis.LockRelease(_key, _token);
-            }
+        public void Dispose()
+        {
+            _redis.LockRelease(_key, _token);
         }
     }
 }
