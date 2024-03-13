@@ -538,6 +538,24 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         }
     }
 
+    /// <summary>
+    /// Verilen key'e göre kilit oluşturur.
+    /// </summary>
+    /// <param name="key">Hangi key kilitlenecek</param>
+    /// <param name="waitTimeout"></param>
+    /// <param name="lockerExpire"></param>
+    /// <param name="action"></param>
+    /// <param name="skipWhenTimeout">Timeout olduğunda çalıştırılacak olan aksiyon geçilsin mi?</param>
+    /// <param name="throwWhenTimeout">Timeout olduğunda <see cref="TimeoutException"/> fırlatılsın mı?</param>
+    public async Task LockAsync(string key, TimeSpan waitTimeout, TimeSpan lockerExpire, Func<Task> action, bool skipWhenTimeout = true, bool throwWhenTimeout = false)
+    {
+        var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
+        using (new ProfileScope(this, lockKey))
+        {
+            await Provider.LockAsync(lockKey, waitTimeout, lockerExpire, action, skipWhenTimeout, throwWhenTimeout);
+        }
+    }
+
     #region Interfaces
     public IEnumerator<TValue?> GetEnumerator()
     {

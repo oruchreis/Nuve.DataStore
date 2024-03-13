@@ -368,6 +368,23 @@ public sealed class HashStore : DataStoreBase
         }
     }
 
+    /// <summary>
+    /// Verilen key'e göre kilit oluşturur.
+    /// </summary>
+    /// <param name="key">Hangi key kilitlenecek</param>
+    /// <param name="waitTimeout"></param>
+    /// <param name="lockerExpire"></param>
+    /// <param name="action"></param>
+    /// <param name="skipWhenTimeout">Timeout olduğunda çalıştırılacak olan aksiyon geçilsin mi?</param>
+    /// <param name="throwWhenTimeout">Timeout olduğunda <see cref="TimeoutException"/> fırlatılsın mı?</param>
+    public async Task LockAsync(string key, TimeSpan waitTimeout, TimeSpan lockerExpire, Func<Task> action, bool skipWhenTimeout = true, bool throwWhenTimeout = false)
+    {
+        var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
+        using (new ProfileScope(this, lockKey))
+        {
+            await Provider.LockAsync(lockKey, waitTimeout, lockerExpire, action, skipWhenTimeout, throwWhenTimeout);
+        }
+    }
 
     /// <summary>
     /// Bu store mevcut mu?
