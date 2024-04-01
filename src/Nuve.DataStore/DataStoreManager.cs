@@ -99,7 +99,7 @@ public static class DataStoreManager
                 if (!_providerTypes.ContainsKey(providerName))
                     throw new ArgumentException(string.Format("Couldn't find the provider '{0}'", providerName), nameof(providerName));
 
-                var provider = (IDataStoreProvider)Activator.CreateInstance(_providerTypes[providerName]);
+                var provider = (IDataStoreProvider)Activator.CreateInstance(_providerTypes[providerName])!;
                 provider.Initialize(connectionString, new InternalProfilerProxy());
                 _providers.Add(connectionName, provider);
 

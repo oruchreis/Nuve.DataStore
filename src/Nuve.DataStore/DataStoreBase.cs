@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 
 namespace Nuve.DataStore;
 
@@ -172,7 +173,7 @@ public abstract class DataStoreBase
         }
 
         var compressedData = new byte[compressed.Length - _compressor.Signature.Length];
-        Array.Copy(compressed, _compressor.Signature.Length, compressedData, 0, compressedData.Length);            
+        Array.Copy(compressed, _compressor.Signature.Length, compressedData, 0, compressedData.Length);
 #else
         var compressedSpanWithSignature = compressed.AsSpan();
         if (compressedSpanWithSignature.Length < _compressor.Signature.Length ||
@@ -325,14 +326,26 @@ public abstract class DataStoreBase
     /// <param name="keyValues"></param>
     /// <returns></returns>
     [DebuggerStepThrough]
-    protected IDictionary<string, byte[]> AsKeyValue<T>(IDictionary<string, T?> keyValues)
+    protected IDictionary<string, byte[]> AsKeyValue<T>(IDictionary<string, T?> keyValues, bool serializeParallel = false, ParallelOptions? parallelOptions = null)
     {
-        var dic = new Dictionary<string, byte[]>();
-        foreach (var kv in keyValues)
+        if (serializeParallel)
         {
-            dic[kv.Key] = AsValue(kv.Value);
+            var dic = new ConcurrentDictionary<string, byte[]>();
+            Parallel.ForEach(keyValues, parallelOptions ?? new ParallelOptions(), kv =>
+            {
+                dic[kv.Key] = AsValue(kv.Value);
+            });
+            return dic;
         }
-        return dic;
+        else
+        {
+            var dic = new Dictionary<string, byte[]>();
+            foreach (var kv in keyValues)
+            {
+                dic[kv.Key] = AsValue(kv.Value);
+            }
+            return dic;
+        }
     }
 
     internal abstract string TypeName { get; }

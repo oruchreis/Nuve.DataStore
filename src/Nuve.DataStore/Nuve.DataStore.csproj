@@ -2,11 +2,10 @@
   <PropertyGroup>
     <AssemblyTitle>Nuve.DataStore</AssemblyTitle>
     <AssemblyName>Nuve.DataStore</AssemblyName>
-    <TargetFrameworks>netstandard2.1;net48</TargetFrameworks>
     <PackageId>Nuve.DataStore</PackageId>
-	<Version>1.2.4</Version>
-    <AssemblyVersion>1.2.4</AssemblyVersion>
-    <FileVersion>1.2.4</FileVersion>
+	  <Version>1.2.5</Version>
+    <AssemblyVersion>1.2.5</AssemblyVersion>
+    <FileVersion>1.2.5</FileVersion>
     <PackageProjectUrl>https://github.com/oruchreis/Nuve.DataStore</PackageProjectUrl>
     <RepositoryUrl>https://github.com/oruchreis/Nuve.DataStore.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

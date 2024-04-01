@@ -43,22 +43,22 @@ namespace Nuve.DataStore
 
         public byte[] Serialize<T>(T? objectToSerialize)
         {
-            return (byte[])_serializeMethod.Invoke(null, new object?[] { objectToSerialize, typeof(T) });
+            return (byte[])_serializeMethod.Invoke(null, [objectToSerialize, typeof(T)]);
         }
 
         public T? Deserialize<T>(byte[]? serializedObject)
         {
-            return (T)_deserializeMethod.Invoke(null, new object?[] { serializedObject, typeof(T), null });
+            return (T)_deserializeMethod.Invoke(null, [serializedObject, typeof(T), null]);
         }
 
         public byte[] Serialize(object? objectToSerialize, Type type)
         {
-            return (byte[])_serializeMethod.Invoke(null, new[] { objectToSerialize, type });
+            return (byte[])_serializeMethod.Invoke(null, [objectToSerialize, type]);
         }
 
         public object? Deserialize(byte[]? serializedObject, Type type)
         {
-            return _deserializeMethod.Invoke(null, new object?[] { serializedObject, type, null });
+            return _deserializeMethod.Invoke(null, [serializedObject, type, null]);
         }
     }
 }

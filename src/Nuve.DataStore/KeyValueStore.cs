@@ -207,12 +207,12 @@ public class KeyValueStore : DataStoreBase
     /// </summary>
     /// <param name="keyValues">Verinin anahtarları ve keyleri</param>
     /// <param name="overwrite"></param>
-    public bool Set<T>(IDictionary<string, T?> keyValues, bool overwrite = true)
+    public bool Set<T>(IDictionary<string, T?> keyValues, bool overwrite = true, bool serializeParallel = false, ParallelOptions? parallelOptions = null)
     {
         using (new ProfileScope(this, string.Join(",", keyValues.Keys)))
         {
             var result = CheckAutoPing(keyValues.Keys,
-                () => _keyValueStoreProvider.SetAll(AsKeyValue(JoinWithRootNamespace(keyValues)), overwrite));
+                () => _keyValueStoreProvider.SetAll(AsKeyValue(JoinWithRootNamespace(keyValues), serializeParallel, parallelOptions), overwrite));
             if (result && DefaultExpire != TimeSpan.Zero)
                 foreach (var key in keyValues.Keys)
                 {
@@ -227,12 +227,12 @@ public class KeyValueStore : DataStoreBase
     /// </summary>
     /// <param name="keyValues">Verinin anahtarları ve keyleri</param>
     /// <param name="overwrite"></param>
-    public async Task<bool> SetAsync<T>(IDictionary<string, T?> keyValues, bool overwrite = true)
+    public async Task<bool> SetAsync<T>(IDictionary<string, T?> keyValues, bool overwrite = true, bool serializeParallel = false, ParallelOptions? parallelOptions = null)
     {
         using (new ProfileScope(this, string.Join(",", keyValues.Keys)))
         {
             var result = await CheckAutoPing(keyValues.Keys,
-                async () => await _keyValueStoreProvider.SetAllAsync(AsKeyValue(JoinWithRootNamespace(keyValues)), overwrite));
+                async () => await _keyValueStoreProvider.SetAllAsync(AsKeyValue(JoinWithRootNamespace(keyValues), serializeParallel, parallelOptions), overwrite));
             if (result && DefaultExpire != TimeSpan.Zero)
                 foreach (var key in keyValues.Keys)
                 {

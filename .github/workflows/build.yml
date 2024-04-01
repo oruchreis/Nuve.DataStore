@@ -28,9 +28,9 @@ jobs:
       uses: actions/setup-dotnet@v3
       with:
         dotnet-version: |
-            7.x
+            8.x
     - name: Test .NET Standard
-      run: dotnet test -v normal -f net7.0 --logger "console;verbosity=detailed"
+      run: dotnet test -v normal -f net8.0 --logger "console;verbosity=detailed"
     - name: Test .NET FW 4.8
       run: dotnet test -v normal -f net48 --logger "console;verbosity=detailed"
       
@@ -53,7 +53,7 @@ jobs:
     - name: Setup .NET Core
       uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: '7.x'
+        dotnet-version: '8.x'
     - name: Publish Nuget Package
       uses: alirezanet/publish-nuget@v3.0.4
       with:

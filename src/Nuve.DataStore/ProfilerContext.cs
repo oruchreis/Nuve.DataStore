@@ -22,7 +22,7 @@ internal readonly struct ProfilerContext : IEquatable<ProfilerContext>
         return !(left == right);
     }
 
-    public override readonly bool Equals(object obj)
+    public override readonly bool Equals(object? obj)
     {
         if (obj is null) return false;
         return obj is ProfilerContext context && Equals(context);

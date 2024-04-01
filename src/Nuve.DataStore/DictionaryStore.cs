@@ -367,11 +367,11 @@ namespace Nuve.DataStore
         /// <param name="keyValues"></param>
         /// <param name="overwrite">Üzerine yazılsın mı?</param>
         /// <returns></returns>
-        public async Task SetAsync(IDictionary<string, TValue?> keyValues, bool overwrite = true)
+        public async Task SetAsync(IDictionary<string, TValue?> keyValues, bool overwrite = true, bool serializeParallel = false, ParallelOptions? parallelOptions = null)
         {
             using (new ProfileScope(this, MasterKey))
             {
-                await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, AsKeyValue(keyValues)));
+                await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, AsKeyValue(keyValues, serializeParallel, parallelOptions)));
             }
         }
 
@@ -381,11 +381,11 @@ namespace Nuve.DataStore
         /// <param name="keyValues"></param>
         /// <param name="overwrite">Üzerine yazılsın mı?</param>
         /// <returns></returns>
-        public void Set(IDictionary<string, TValue?> keyValues, bool overwrite = true)
+        public void Set(IDictionary<string, TValue?> keyValues, bool overwrite = true, bool serializeParallel = false, ParallelOptions? parallelOptions = null)
         {
             using (new ProfileScope(this, MasterKey))
             {
-                CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, AsKeyValue(keyValues)));
+                CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, AsKeyValue(keyValues, serializeParallel, parallelOptions)));
             }
         }
 
