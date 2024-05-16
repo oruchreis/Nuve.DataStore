@@ -62,7 +62,7 @@ public static class RedisExtension
 
         private static readonly Thread _slidingExpirationThread = new Thread(SlidingExpirationWorker) { IsBackground = true, Name = "RedisLockSlidingExpiration" };
         private static readonly ConcurrentDictionary<Lock, object> _locks = new ConcurrentDictionary<Lock, object>();
-        private static readonly EventWaitHandle _waitHandle = new EventWaitHandle(false, EventResetMode.AutoReset);
+        private static readonly EventWaitHandle _waitHandle = new AutoResetEvent(false);
 
         private static void SlidingExpirationWorker()
         {
@@ -98,6 +98,8 @@ public static class RedisExtension
                 Thread.Sleep(CheckSlidingExpirationMs);
                 if (_locks.IsEmpty)
                     _waitHandle.Reset();
+                else
+                    _waitHandle.Set();
             }
 
 
@@ -120,8 +122,6 @@ public static class RedisExtension
             if (slidingExpire.TotalMilliseconds <= CheckSlidingExpirationMs * 2)
                 throw new ArgumentException("Sliding expiration must be greater than 1000ms.", nameof(slidingExpire));
             SlidingExpire = slidingExpire;
-            _locks[this] = new object();
-            _waitHandle.Set();
         }
 
         public void TryAcquireLock()
@@ -160,7 +160,11 @@ public static class RedisExtension
             finally
             {
                 if (lockAchieved)
+                {
                     LockAchieved = DateTimeOffset.UtcNow;
+                    _locks[this] = new object();
+                    _waitHandle.Set();
+                }   
             }
         }
 
@@ -200,14 +204,18 @@ public static class RedisExtension
             finally
             {
                 if (lockAchieved)
+                {
                     LockAchieved = DateTimeOffset.UtcNow;
+                    _locks[this] = new object();
+                    _waitHandle.Set();
+                }
             }
         }
 
         public void Dispose()
         {
-            _locks.TryRemove(this, out var syncObj);
-            lock (syncObj!)
+            _locks.TryRemove(this, out var syncObj);            
+            lock (syncObj ?? new object())
             {
                 _redis.LockRelease(Key, Token);
             }
