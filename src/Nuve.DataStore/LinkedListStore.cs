@@ -10,17 +10,16 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     private static readonly string _typeName = typeof(DictionaryStore<TValue>).GetFriendlyName();
 
     /// <summary>
-    /// HashSet değer tutan store yapısı. 
+    /// A data store structure that holds LinkedList values.
     /// </summary>
-    /// <param name="masterKey">Bu dictionary hangi key altında saklanacak</param>
-    /// <param name="connectionName">Config'de tanımlı bağlantı ismi</param>
-    /// <param name="defaultExpire">Varsayılan expire süresi.</param>
-    /// <param name="autoPing">Her işlemde otomatik olarak Ping yapılsın mı?</param>
-    /// <param name="namespaceSeperator">Namespace'leri ayırmak için kullanılan ayraç. Varsayılan olarak ":"dir. </param>
-    /// <param name="overrideRootNamespace">Bağlantıya tanımlı root alan adını değiştirmek için kullanılır.</param>
-    /// <param name="serializer">Varsayılan serializer yerine başka bir serializer kullanmak istiyorsanız bunu setleyin.</param>
-    /// <param name="profiler">Özel olarak sadece bu data store'un metodlarını profile etmek için kullanılır. 
-    /// Setlense de setlenmese de <see cref="DataStoreManager"/>'a kayıtlı global profiler kullanılır.</param>
+    /// <param name="masterKey">The key under which this dictionary will be stored.</param>
+    /// <param name="connectionName">The connection name defined in the config.</param>
+    /// <param name="defaultExpire">Default expiration time.</param>
+    /// <param name="autoPing">Should Ping be automatically performed for each operation?</param>
+    /// <param name="namespaceSeperator">Separator used to separate namespaces. The default is ":".</param>
+    /// <param name="overrideRootNamespace">Used to change the root namespace defined in the connection.</param>
+    /// <param name="serializer">Set this if you want to use a different serializer instead of the default serializer.</param>
+    /// <param name="profiler">Used to profile only the methods of this data store. The global profiler registered in <see cref="DataStoreManager"/> is used whether it is set or not.</param>
     public LinkedListStore(string masterKey, string? connectionName = null, TimeSpan? defaultExpire = null, bool autoPing = false,
         string? namespaceSeperator = null, string? overrideRootNamespace = null, IDataStoreSerializer? serializer = null, IDataStoreCompressor? compressor = null,
         IDataStoreProfiler? profiler = null,
@@ -29,11 +28,11 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     {
         _linkedListStoreProvider = Provider as ILinkedListStoreProvider
             ?? throw new InvalidOperationException($"The provider with connection '{connectionName}' doesn't support LinkedList operations. " +
-                "The provider must implement ILinkedListStoreProvider interface to use LinkedListStore");
+                "The provider must implement the ILinkedListStoreProvider interface to use LinkedListStore");
 
         MasterKey = JoinWithRootNamespace(string.Format("{0}<{1}>",
             masterKey,
-            _valueName));//tip ismini eklememiz şart. Çünkü aynı masterKey'de farklı tipte olan listeler deserialize olamaz.
+            _valueName));// It is necessary to add the type name. Because lists with different types cannot be deserialized in the same masterKey.
     }
 
     internal override string TypeName
@@ -42,12 +41,12 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     }
 
     /// <summary>
-    /// Store yapısının tutulduğu tam yol.
+    /// The full path where the store structure is held.
     /// </summary>
     public readonly string MasterKey;
 
     /// <summary>
-    /// Bu store mevcut mu?
+    /// Is this store exists?
     /// </summary>
     /// <returns></returns>
     public async Task<bool> IsExistsAsync()
@@ -59,7 +58,7 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     }
 
     /// <summary>
-    /// Bu store mevcut mu?
+    /// Is this store exists?
     /// </summary>
     /// <returns></returns>
     public bool IsExists()
@@ -71,7 +70,7 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     }
 
     /// <summary>
-    /// Store'un <see cref="DataStoreBase.DefaultExpire"/> özelliği setli ise expire süresini bu süreye sıfırlar.
+    /// Resets the expiration time to the default value if the <see cref="DataStoreBase.DefaultExpire"/> property of the store is set.
     /// </summary>
     /// <returns></returns>
     public async Task<bool> PingAsync()
@@ -80,7 +79,7 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     }
 
     /// <summary>
-    /// Store'un <see cref="DataStoreBase.DefaultExpire"/> özelliği setli ise expire süresini bu süreye sıfırlar.
+    /// Resets the expiration time to the default value if the <see cref="DataStoreBase.DefaultExpire"/> property of the store is set.
     /// </summary>
     /// <returns></returns>
     public bool Ping()
@@ -521,38 +520,38 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     }
 
     /// <summary>
-    /// Verilen key'e göre kilit oluşturur.
+    /// Creates a lock based on the given key.
     /// </summary>
-    /// <param name="key">Hangi key kilitlenecek</param>
-    /// <param name="waitTimeout"></param>
-    /// <param name="lockerExpire"></param>
-    /// <param name="action"></param>
-    /// <param name="skipWhenTimeout">Timeout olduğunda çalıştırılacak olan aksiyon geçilsin mi?</param>
-    /// <param name="throwWhenTimeout">Timeout olduğunda <see cref="TimeoutException"/> fırlatılsın mı?</param>
-    public void Lock(string key, TimeSpan waitTimeout, TimeSpan lockerExpire, Action action, bool skipWhenTimeout = true, bool throwWhenTimeout = false)
+    /// <param name="key">The key to lock.</param>
+    /// <param name="waitTimeout">The maximum time to wait for the lock.</param>
+    /// <param name="action">The action to perform while the lock is held.</param>
+    /// <param name="skipWhenTimeout">Should the action be skipped when a timeout occurs?</param>
+    /// <param name="throwWhenTimeout">Should a TimeoutException be thrown when a timeout occurs?</param>
+    /// <param name="slidingExpire">The sliding expiration time for the lock.</param>
+    public void Lock(string key, TimeSpan waitTimeout, Action action, bool skipWhenTimeout = true, bool throwWhenTimeout = false, TimeSpan? slidingExpire = null)
     {
         var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
         using (new ProfileScope(this, lockKey))
         {
-            Provider.Lock(lockKey, waitTimeout, lockerExpire, action, skipWhenTimeout, throwWhenTimeout);
+            Provider.Lock(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
         }
     }
 
     /// <summary>
-    /// Verilen key'e göre kilit oluşturur.
+    /// Creates a lock based on the given key.
     /// </summary>
-    /// <param name="key">Hangi key kilitlenecek</param>
-    /// <param name="waitTimeout"></param>
-    /// <param name="lockerExpire"></param>
-    /// <param name="action"></param>
-    /// <param name="skipWhenTimeout">Timeout olduğunda çalıştırılacak olan aksiyon geçilsin mi?</param>
-    /// <param name="throwWhenTimeout">Timeout olduğunda <see cref="TimeoutException"/> fırlatılsın mı?</param>
-    public async Task LockAsync(string key, TimeSpan waitTimeout, TimeSpan lockerExpire, Func<Task> action, bool skipWhenTimeout = true, bool throwWhenTimeout = false)
+    /// <param name="key">The key to lock.</param>
+    /// <param name="waitTimeout">The maximum time to wait for the lock.</param>
+    /// <param name="action">The action to perform while the lock is held.</param>
+    /// <param name="skipWhenTimeout">Should the action be skipped when a timeout occurs?</param>
+    /// <param name="throwWhenTimeout">Should a TimeoutException be thrown when a timeout occurs?</param>
+    /// <param name="slidingExpire">The sliding expiration time for the lock.</param>
+    public async Task LockAsync(string key, TimeSpan waitTimeout, Func<Task> action, bool skipWhenTimeout = true, bool throwWhenTimeout = false, TimeSpan? slidingExpire = null)
     {
         var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
         using (new ProfileScope(this, lockKey))
         {
-            await Provider.LockAsync(lockKey, waitTimeout, lockerExpire, action, skipWhenTimeout, throwWhenTimeout);
+            await Provider.LockAsync(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
         }
     }
 

@@ -10,11 +10,24 @@ on:
     branches: [ master ]
 
 jobs:
-  windows-test:
-    runs-on: windows-2022
+  test:
+    runs-on: ubuntu-latest
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_NOLOGO: 1
+    services:
+      # Label used to access the service container
+      redis:
+        # Docker Hub image
+        image: redis
+        # Set health checks to wait until redis has started
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
     steps:
     - uses: actions/checkout@v2
     - name: Caching
@@ -35,7 +48,7 @@ jobs:
       run: dotnet test -v normal -f net48 --logger "console;verbosity=detailed"
       
   upload-packages:
-    needs: [windows-test] 
+    needs: [test] 
     if: success()
     runs-on: windows-2022
     strategy:

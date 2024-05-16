@@ -10,7 +10,7 @@ public partial class RedisStoreProvider : IDataStoreProvider
 
     private string? _connectionString;
     private ConcurrentQueue<ConnectionMultiplexer>? _connectionPool;
-    
+
     protected T RedisCall<T>(Func<IDatabase, T> callFunction, int retryCount = 0, List<Exception>? exceptions = null)
     {
         if (_connectionString == null || _connectionPool == null)
@@ -272,13 +272,13 @@ public partial class RedisStoreProvider : IDataStoreProvider
         });
     }
 
-    void IDataStoreProvider.Lock(string lockKey, TimeSpan waitTimeout, TimeSpan lockerExpire, Action action, bool skipWhenTimeout, bool throwWhenTimeout)
+    void IDataStoreProvider.Lock(string lockKey, TimeSpan waitTimeout, Action action, TimeSpan slidingExpire, bool skipWhenTimeout, bool throwWhenTimeout)
     {
         try
         {
             RedisCall(Db =>
             {
-                using (Db.AcquireLock(lockKey, waitTimeout, lockerExpire))
+                using (Db.AcquireLock(lockKey, waitTimeout, slidingExpire))
                 {
                     action();
                 }
@@ -293,13 +293,30 @@ public partial class RedisStoreProvider : IDataStoreProvider
         }
     }
 
-    async Task IDataStoreProvider.LockAsync(string lockKey, TimeSpan waitTimeout, TimeSpan lockerExpire, Func<Task> action, bool skipWhenTimeout, bool throwWhenTimeout)
+    internal void Lock(string lockKey, TimeSpan waitTimeout, Action<IDisposable> action, TimeSpan slidingExpire, bool throwWhenTimeout)
+    {
+        try
+        {
+            RedisCall(Db =>
+            {
+                using var lockItem = Db.AcquireLock(lockKey, waitTimeout, slidingExpire);
+                action(lockItem);
+            });
+        }
+        catch (TimeoutException e)
+        {
+            if (throwWhenTimeout)
+                ExceptionDispatchInfo.Capture(e).Throw();
+        }
+    }
+
+    async Task IDataStoreProvider.LockAsync(string lockKey, TimeSpan waitTimeout, Func<Task> action, TimeSpan slidingExpire, bool skipWhenTimeout, bool throwWhenTimeout)
     {
         try
         {
             await RedisCallAsync(async Db =>
             {
-                using (await Db.AcquireLockAsync(lockKey, waitTimeout, lockerExpire))
+                using (await Db.AcquireLockAsync(lockKey, waitTimeout, slidingExpire))
                 {
                     await action();
                 }

@@ -1,21 +1,24 @@
 ﻿using System.Reflection;
+using System.Runtime.CompilerServices;
 
 #if NET48
 using Nuve.DataStore.Configuration;
 using System.Configuration;
 #endif
 
+[assembly:InternalsVisibleTo("Nuve.DataStore.Test")]
+
 namespace Nuve.DataStore;
 
 /// <summary>
-/// DataStore'un kullandığı provider'ları ve bunların bağlantılarını kontrol eder.
+/// <summary>
+/// Controls the providers used by DataStore and their connections.
 /// </summary>
 /// <remarks>
-/// <para>Varsayılan olarak ilk erişimde uygulamanın config'inde tanımlı provider ve bağlantıları oluşturur.</para>
-/// <para>Talep olursa yeni provider'lar ve bağlantılar kaydedilir.</para>
-/// <para>Provider'lar ve bağlantılar tekil olması gerekir. Bu yüzden config dışındaki provider ve bağlantı tanımlamalarının bir defaya mahsus yapılması gerekmektedir.</para>
-/// <para>Önceden tanımlı provider ve bağlantılar tanımlanmaya çalışılırsa hata fırlatılır 
-/// çünkü tanımlama işlemleri diğer çağırımları kilitlemektedir ve her yerde kullanılmasının önüne geçilmesi gerekmektedir.</para>
+/// <para>By default, it creates the providers and connections defined in the application's config on the first access.</para>
+/// <para>New providers and connections can be registered upon request.</para>
+/// <para>Providers and connections must be unique. Therefore, any provider and connection definitions outside the config must be made only once.</para>
+/// <para>If previously defined providers and connections are attempted to be defined again, an exception is thrown because the definition operations lock other invocations and prevent them from being used everywhere.</para>
 /// </remarks>
 public static class DataStoreManager
 {
@@ -42,14 +45,14 @@ public static class DataStoreManager
     }
 
     /// <summary>
-    /// Yeni bir provider tipini kaydeder. Provider tipi en azından <see cref="IDataStoreProvider"/> tanımlamalıdır.
+    /// Registers a new provider type. The provider type must implement at least <see cref="IDataStoreProvider"/>.
     /// </summary>
-    /// <param name="providerName">Provider'a ait isim, önceden kayıtlı olmamalıdır.</param>
-    /// <param name="providerTypeString">Provider tipine ait string. "ClassPath, Assembly" şeklinde olmalı.</param>
-    /// <exception cref="TypeLoadException">Eğer tipe ait assembly bulunamazsa veya tip <see cref="IDataStoreProvider"/> arayüzünü tanımlamıyorsa bu hata fırlatılır.</exception>
+    /// <param name="providerName">The name of the provider, it should not be previously registered.</param>
+    /// <param name="providerTypeString">The string representation of the provider type. It should be in the format "ClassPath, Assembly".</param>
+    /// <exception cref="TypeLoadException">Thrown if the assembly for the type cannot be found or if the type does not implement <see cref="IDataStoreProvider"/>.</exception>
     public static void RegisterProvider(string providerName, string providerTypeString)
     {
-        _providerTypeLocker.EnterWriteLock();
+        _providerTypeLocker.EnterUpgradeableReadLock();
         try
         {
             if (_providerTypes.ContainsKey(providerName))
@@ -65,8 +68,30 @@ public static class DataStoreManager
                 throw new TypeLoadException(string.Format("Failed to load type '{0}'!", providerTypeString), e);
             }
 
+            RegisterProvider(providerName, providerType);
+        }
+        finally
+        {
+            _providerTypeLocker.ExitUpgradeableReadLock();
+        }
+    }
+
+    /// <summary>
+    /// Registers a new provider type. The provider type must implement at least <see cref="IDataStoreProvider"/>.
+    /// </summary>
+    /// <param name="providerName">The name of the provider, it should not be previously registered.</param>
+    /// <param name="providerType">The provider type.</param>
+    /// <exception cref="TypeLoadException">Thrown if the assembly for the type cannot be found or if the type does not implement <see cref="IDataStoreProvider"/>.</exception>
+    public static void RegisterProvider(string providerName, Type providerType)
+    {
+        _providerTypeLocker.EnterWriteLock();
+        try
+        {
+            if (_providerTypes.ContainsKey(providerName))
+                throw new ArgumentException(string.Format("The provider '{0}' is already defined.", providerName), nameof(providerName));         
+
             if (!typeof(IDataStoreProvider).IsAssignableFrom(providerType))
-                throw new TypeLoadException(string.Format("Invalid type '{0}'. '{0}' must implement IDataStoreProvider.", providerTypeString));
+                throw new TypeLoadException(string.Format("Invalid type '{0}'. '{0}' must implement IDataStoreProvider.", providerType.FullName));
 
             _providerTypes.Add(providerName, providerType);
         }
@@ -77,13 +102,13 @@ public static class DataStoreManager
     }
 
     /// <summary>
-    /// Yeni bir bağlantı oluşturur. Aynı isimde bağlantı varsa hata fırlatılır.
+    /// Creates a new connection. If a connection with the same name already exists, an exception is thrown.
     /// </summary>
-    /// <param name="connectionName">Tekil bağlantı ismi</param>
-    /// <param name="providerName">Önceden kaydedilmiş provider adı.</param>
-    /// <param name="connectionString">Provider'a özgü connection string.</param>
+    /// <param name="connectionName">The unique name of the connection.</param>
+    /// <param name="providerName">The name of the previously registered provider.</param>
+    /// <param name="connectionString">The provider-specific connection string.</param>
     /// <param name="rootNamespace"></param>
-    /// <param name="isDefault">Varsayılan bağlantı bu mu?</param>
+    /// <param name="isDefault">Is this the default connection?</param>
     public static void CreateConnection(string connectionName, string providerName, string connectionString,
         string rootNamespace = "", bool isDefault = false, int? compressBiggerThan = null)
     {
@@ -91,7 +116,7 @@ public static class DataStoreManager
         try
         {
             if (_providers.ContainsKey(connectionName))
-                throw new ArgumentException(string.Format("Theres is already a connection with name '{0}'.", connectionName), nameof(connectionName));
+                throw new ArgumentException(string.Format("There is already a connection with the name '{0}'.", connectionName), nameof(connectionName));
 
             _providerTypeLocker.EnterReadLock();
             try
@@ -124,9 +149,11 @@ public static class DataStoreManager
     private static readonly ReaderWriterLockSlim _defaultSerializerLocker = new ReaderWriterLockSlim();
 
     /// <summary>
-    /// Tüm DataStore işlemlerinde kullanılacak varsayılan serializer'ı getirmek ya da değiştirmek için kullanılır.
+    /// Gets or sets the default serializer to be used in all DataStore operations.
     /// </summary>
-    /// <remarks>Değiştirme işlemlerini uygulama başlangıcında yapmanız tavsiye olunur. Çünkü değiştirme işlemi lock'a tabidir.</remarks>
+    /// <remarks>
+    /// It is recommended to perform the modification operations at the beginning of the application because the modification process is subject to a lock.
+    /// </remarks>
     public static IDataStoreSerializer DefaultSerializer
     {
         get
@@ -146,7 +173,7 @@ public static class DataStoreManager
             _defaultSerializerLocker.EnterWriteLock();
             try
             {
-                _defaultSerializer = new (()=>value);
+                _defaultSerializer = new(() => value);
             }
             finally
             {
@@ -159,9 +186,11 @@ public static class DataStoreManager
     private static readonly ReaderWriterLockSlim _defaultCompressorLocker = new();
 
     /// <summary>
-    /// Tüm DataStore işlemlerinde kullanılacak varsayılan compressor'u getirmek ya da değiştirmek için kullanılır.
+    /// Gets or sets the default compressor to be used in all DataStore operations.
     /// </summary>
-    /// <remarks>Değiştirme işlemlerini uygulama başlangıcında yapmanız tavsiye olunur. Çünkü değiştirme işlemi lock'a tabidir.</remarks>
+    /// <remarks>
+    /// It is recommended to perform the modification operations at the beginning of the application because the modification process is subject to a lock.
+    /// </remarks>
     public static IDataStoreCompressor DefaultCompressor
     {
         get
@@ -181,7 +210,7 @@ public static class DataStoreManager
             _defaultCompressorLocker.EnterWriteLock();
             try
             {
-                _defaultCompressor = new (()=>value);
+                _defaultCompressor = new(() => value);
             }
             finally
             {
@@ -255,9 +284,9 @@ public static class DataStoreManager
     private static readonly ReaderWriterLockSlim _globalProfilerLocker = new();
     private static IDataStoreProfiler _globalProfiler = new NullDataStoreProfiler();
     /// <summary>
-    /// Tüm datastore yapılarını profile etmek için kullanılan profiler'ı kaydeder.
+    /// Registers the profiler used to profile all datastore structures.
     /// </summary>
-    /// <param name="profiler"></param>
+    /// <param name="profiler">The profiler to be registered.</param>
     public static void RegisterGlobalProfiler(IDataStoreProfiler profiler)
     {
         _globalProfilerLocker.EnterWriteLock();

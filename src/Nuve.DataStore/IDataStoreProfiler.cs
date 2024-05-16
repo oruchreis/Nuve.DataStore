@@ -1,28 +1,27 @@
 ﻿using System.Collections.Generic;
 
-namespace Nuve.DataStore
+namespace Nuve.DataStore;
+
+/// <summary>
+/// Used to profile DataStore methods.
+/// </summary>
+public interface IDataStoreProfiler
 {
     /// <summary>
-    /// DataStore metodlarını profile etmek için kullanılır.
+    /// This method is called at the beginning of profiling. The object returned as output will be passed as a parameter in the <see cref="Finish"/> method.
     /// </summary>
-    public interface IDataStoreProfiler
-    {
-        /// <summary>
-        /// Profile başlangıcında bu metod çağrılır. Çıktı olarak verilen obje <see cref="Finish"/> metodunda parametre olarak dönecektir. 
-        /// </summary>
-        /// <param name="method">Çalıştırılan metodun sınıf ismi ile beraber uzun ismi</param>
-        /// <param name="key">Metoda yollanan key</param>
-        /// <returns>Çıkış olarak verilen objeye göre profile bilgileri gruplanır. <see cref="Finish"/> metodunda bu obje parametre olarak gelir.</returns>
-        object? Begin(string method, string? key);
+    /// <param name="method">The long name of the executed method along with the class name</param>
+    /// <param name="key">The key passed to the method</param>
+    /// <returns>The profile information is grouped based on the object provided as output. This object will be passed as a parameter in the <see cref="Finish"/> method.</returns>
+    object? Begin(string method, string? key);
 
-        /// <summary>
-        /// Profile bitişinde bu metod çağrılır.
-        /// </summary>
-        /// <param name="context"><see cref="Begin"/> metodunda çıktı olarak verilen obje</param>
-        /// <param name="results">Profile sonucu</param>
-        /// <returns></returns>
-        void Finish(object? context, params DataStoreProfileResult[] results);
+    /// <summary>
+    /// This method is called at the end of profiling.
+    /// </summary>
+    /// <param name="context">The object returned in the <see cref="Begin"/> method</param>
+    /// <param name="results">The profiling results</param>
+    /// <returns></returns>
+    void Finish(object? context, params DataStoreProfileResult[] results);
 
-        object? GetContext();
-    }
+    object? GetContext();
 }

@@ -7,7 +7,7 @@ using Nuve.DataStore.Helpers;
 namespace Nuve.DataStore
 {
     /// <summary>
-    /// <typeparamref name="TValue"/> tipinde değer tutan Dictionary yapısı.
+    /// DictionaryStore structure that holds values of type <typeparamref name="TValue"/>.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
     public sealed class DictionaryStore<TValue> : DataStoreBase, IDictionary<string, TValue?>
@@ -17,17 +17,17 @@ namespace Nuve.DataStore
         private static readonly string _typeName = typeof(DictionaryStore<TValue>).GetFriendlyName();
 
         /// <summary>
-        /// Dictionary değer tutan store yapısı. 
+        /// DictionaryStore structure that holds values.
         /// </summary>
-        /// <param name="masterKey">Bu dictionary hangi key altında saklanacak</param>
-        /// <param name="connectionName">Config'de tanımlı bağlantı ismi</param>
-        /// <param name="defaultExpire">Varsayılan expire süresi.</param>
-        /// <param name="autoPing">Her işlemde otomatik olarak Ping yapılsın mı?</param>
-        /// <param name="namespaceSeperator">Namespace'leri ayırmak için kullanılan ayraç. Varsayılan olarak ":"dir. </param>
-        /// <param name="overrideRootNamespace">Bağlantıya tanımlı root alan adını değiştirmek için kullanılır.</param>
-        /// <param name="serializer">Varsayılan serializer yerine başka bir serializer kullanmak istiyorsanız bunu setleyin.</param>
-        /// <param name="profiler">Özel olarak sadece bu data store'un metodlarını profile etmek için kullanılır. 
-        /// Setlense de setlenmese de <see cref="DataStoreManager"/>'a kayıtlı global profiler kullanılır.</param>
+        /// <param name="masterKey">Under which key this dictionary will be stored</param>
+        /// <param name="connectionName">Connection name defined in the config</param>
+        /// <param name="defaultExpire">Default expiration time.</param>
+        /// <param name="autoPing">Should Ping be automatically performed for each operation?</param>
+        /// <param name="namespaceSeperator">Separator used to separate namespaces. Default is ":".</param>
+        /// <param name="overrideRootNamespace">Used to change the root namespace defined in the connection.</param>
+        /// <param name="serializer">Set this if you want to use a different serializer instead of the default serializer.</param>
+        /// <param name="profiler">Used to profile only the methods of this data store. 
+        /// Whether set or not, the global profiler registered in <see cref="DataStoreManager"/> will be used.</param>
         public DictionaryStore(string masterKey, string? connectionName = null, TimeSpan? defaultExpire = null, bool autoPing = false,
             string? namespaceSeperator = null, string? overrideRootNamespace = null, IDataStoreSerializer? serializer = null, IDataStoreCompressor? compressor = null,
             IDataStoreProfiler? profiler = null,
@@ -38,18 +38,18 @@ namespace Nuve.DataStore
                 ?? throw new InvalidOperationException($"The provider with connection '{connectionName}' doesn't support Dictionary operations. " +
                     "The provider must implement IDictionaryStoreProvider interface to use DictionaryStore");
 
-            MasterKey = JoinWithRootNamespace($"{masterKey}<{_valueName}>");//tip ismini eklememiz şart. Çünkü aynı masterKey'de farklı tipte olan listeler deserialize olamaz.
+            MasterKey = JoinWithRootNamespace($"{masterKey}<{_valueName}>");// It is necessary to add the type name. Because lists of different types cannot be deserialized in the same masterKey.
         }
 
         internal override string TypeName => _typeName;
 
         /// <summary>
-        /// Store yapısının tutulduğu tam yol.
+        /// The full path where the store is held.
         /// </summary>
         public readonly string MasterKey;
-
+        
         /// <summary>
-        /// Bu store mevcut mu?
+        /// Is this store available?
         /// </summary>
         /// <returns></returns>
         public async Task<bool> IsExistsAsync()
@@ -61,7 +61,7 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Bu store mevcut mu?
+        /// Is this store available?
         /// </summary>
         /// <returns></returns>
         public bool IsExists()
@@ -72,8 +72,9 @@ namespace Nuve.DataStore
             }
         }
 
+
         /// <summary>
-        /// Store'un <see cref="DataStoreBase.DefaultExpire"/> özelliği setli ise expire süresini bu süreye sıfırlar.
+        /// If the <see cref="DataStoreBase.DefaultExpire"/> property of the store is set, it resets the expiration time to this value.
         /// </summary>
         /// <returns></returns>
         public async Task<bool> PingAsync()
@@ -82,7 +83,7 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Store'un <see cref="DataStoreBase.DefaultExpire"/> özelliği setli ise expire süresini bu süreye sıfırlar.
+        /// If the <see cref="DataStoreBase.DefaultExpire"/> property of the store is set, it resets the expiration time to this value.
         /// </summary>
         /// <returns></returns>
         public bool Ping()
@@ -94,21 +95,41 @@ namespace Nuve.DataStore
         {
             action();
             if (AutoPing)
-                Task.Run(() => Ping());
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        await PingAsync();
+                    }
+                    catch (Exception e)
+                    {
+                        //intentionally supressed
+                    }
+                });
         }
 
         private T CheckAutoPing<T>(Func<T> func)
         {
             var result = func();
             if (AutoPing)
-                Task.Run(() => Ping());
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        await PingAsync();
+                    }
+                    catch (Exception e)
+                    {
+                        //intentionally supressed
+                    }
+                });
             return result;
         }
 
         /// <summary>
-        /// MasterKey'in geçerlilik süresi
+        /// Gets the expiration time of the MasterKey.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>The expiration time of the MasterKey.</returns>
         public async Task<TimeSpan?> GetExpireAsync()
         {
             using (new ProfileScope(this, MasterKey))
@@ -118,9 +139,9 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// MasterKey'in geçerlilik süresi
+        /// Gets the expiration time of the MasterKey.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>The expiration time of the MasterKey.</returns>
         public TimeSpan? GetExpire()
         {
             using (new ProfileScope(this, MasterKey))
@@ -130,9 +151,9 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Store silinir.
+        /// Clears the store.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>True if the store is cleared successfully; otherwise, false.</returns>
         public async Task<bool> ClearAsync()
         {
             using (new ProfileScope(this, MasterKey))
@@ -142,9 +163,9 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Store silinir.
+        /// Clears the store.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>True if the store is cleared successfully; otherwise, false.</returns>
         public bool Clear()
         {
             using (new ProfileScope(this, MasterKey))
@@ -154,10 +175,10 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Bir key'in olup olmadığını döner.
+        /// Returns whether a key exists or not.
         /// </summary>
-        /// <param name="key"></param>
-        /// <returns></returns>
+        /// <param name="key">The key to check.</param>
+        /// <returns><c>true</c> if the key exists; otherwise, <c>false</c>.</returns>
         public async Task<bool> ContainsKeyAsync(string key)
         {
             using (new ProfileScope(this, key))
@@ -167,10 +188,10 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Bir key'in olup olmadığını döner.
+        /// Returns whether a key exists or not.
         /// </summary>
-        /// <param name="key"></param>
-        /// <returns></returns>
+        /// <param name="key">The key to check.</param>
+        /// <returns><c>true</c> if the key exists; otherwise, <c>false</c>.</returns>
         public bool ContainsKey(string key)
         {
             using (new ProfileScope(this, key))
@@ -180,11 +201,11 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Key-value ikilisinin olup olamdığını döner.
+        /// Returns whether a key-value pair exists or not.
         /// </summary>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <returns></returns>
+        /// <param name="key">The key to check.</param>
+        /// <param name="value">The value to check.</param>
+        /// <returns><c>true</c> if the key-value pair exists; otherwise, <c>false</c>.</returns>
         public async Task<bool> ContainsAsync(string key, TValue? value)
         {
             using (new ProfileScope(this, key))
@@ -202,11 +223,11 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Key-value ikilisinin olup olamdığını döner.
+        /// Returns whether a key-value pair exists or not.
         /// </summary>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <returns></returns>
+        /// <param name="key">The key to check.</param>
+        /// <param name="value">The value to check.</param>
+        /// <returns><c>true</c> if the key-value pair exists; otherwise, <c>false</c>.</returns>
         public bool Contains(string key, TValue? value)
         {
             using (new ProfileScope(this, key))
@@ -224,11 +245,10 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// İçeriği bir array üzerine kopyalar.
+        /// Copies the content to an array.
         /// </summary>
-        /// <param name="array"></param>
-        /// <param name="arrayIndex"></param>
-        /// <returns></returns>
+        /// <param name="array">The array to copy the content to.</param>
+        /// <param name="arrayIndex">The starting index of the array.</param>
         public async Task CopyToAsync(KeyValuePair<string, TValue?>[] array, int arrayIndex)
         {
             await CheckAutoPing(async () =>
@@ -239,11 +259,10 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// İçeriği bir array üzerine kopyalar.
+        /// Copies the content to an array.
         /// </summary>
-        /// <param name="array"></param>
-        /// <param name="arrayIndex"></param>
-        /// <returns></returns>
+        /// <param name="array">The array to copy the content to.</param>
+        /// <param name="arrayIndex">The starting index of the array.</param>
         public void CopyTo(KeyValuePair<string, TValue?>[] array, int arrayIndex)
         {
             CheckAutoPing(() =>
@@ -252,12 +271,11 @@ namespace Nuve.DataStore
                               dict.CopyTo(array, arrayIndex);
                           });
         }
-
         /// <summary>
-        /// Keyleri store'dan kaldırır.
+        /// Removes keys from the store.
         /// </summary>
-        /// <param name="keys"></param>
-        /// <returns></returns>
+        /// <param name="keys">The keys to remove.</param>
+        /// <returns>The number of keys removed.</returns>
         public async Task<long> RemoveAsync(params string[] keys)
         {
             using (new ProfileScope(this, MasterKey))
@@ -267,10 +285,10 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Keyleri store'dan kaldırır.
+        /// Removes keys from the store.
         /// </summary>
-        /// <param name="keys"></param>
-        /// <returns></returns>
+        /// <param name="keys">The keys to remove.</param>
+        /// <returns>The number of keys removed.</returns>
         public long Remove(params string[] keys)
         {
             using (new ProfileScope(this, MasterKey))
@@ -280,10 +298,10 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Bir key'in değerini getirir.
+        /// Gets the value of a key.
         /// </summary>
-        /// <param name="key"></param>
-        /// <returns></returns>
+        /// <param name="key">The key.</param>
+        /// <returns>The value associated with the key.</returns>
         public async Task<TValue?> GetAsync(string key)
         {
             using (new ProfileScope(this, key))
@@ -293,10 +311,10 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Bir key'in değerini getirir.
+        /// Gets the value of a key.
         /// </summary>
-        /// <param name="key"></param>
-        /// <returns></returns>
+        /// <param name="key">The key.</param>
+        /// <returns>The value associated with the key.</returns>
         public TValue? Get(string key)
         {
             using (new ProfileScope(this, key))
@@ -306,10 +324,10 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Birden fazla key'in değerini getirir. Birden fazla key sorgusu için bunu kullanın.
+        /// Gets the values of multiple keys. Use this for querying multiple keys.
         /// </summary>
-        /// <param name="keys"></param>
-        /// <returns></returns>
+        /// <param name="keys">The keys.</param>
+        /// <returns>A dictionary containing the values associated with the keys.</returns>
         public async Task<IDictionary<string, TValue?>> GetAsync(params string[] keys)
         {
             using (new ProfileScope(this, MasterKey))
@@ -319,10 +337,10 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Birden fazla key'in değerini getirir. Birden fazla key sorgusu için bunu kullanın.
+        /// Gets the values of multiple keys. Use this for querying multiple keys.
         /// </summary>
-        /// <param name="keys"></param>
-        /// <returns></returns>
+        /// <param name="keys">The keys.</param>
+        /// <returns>A dictionary containing the values associated with the keys.</returns>
         public IDictionary<string, TValue?> Get(params string[] keys)
         {
             using (new ProfileScope(this, MasterKey))
@@ -332,12 +350,12 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Bir key'e değer ataması yapar.
+        /// Sets a value for a key.
         /// </summary>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <param name="overwrite">Üzerine yazılsın mı?</param>
-        /// <returns></returns>
+        /// <param name="key">The key.</param>
+        /// <param name="value">The value.</param>
+        /// <param name="overwrite">Should it overwrite an existing value?</param>
+        /// <returns>True if the value was set successfully, false otherwise.</returns>
         public async Task<bool> SetAsync(string key, TValue? value, bool overwrite = true)
         {
             using (new ProfileScope(this, key))
@@ -347,12 +365,12 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Bir key'e değer ataması yapar.
+        /// Sets a value for a key.
         /// </summary>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <param name="overwrite">Üzerine yazılsın mı?</param>
-        /// <returns></returns>
+        /// <param name="key">The key.</param>
+        /// <param name="value">The value.</param>
+        /// <param name="overwrite">Should it overwrite an existing value?</param>
+        /// <returns>True if the value was set successfully, false otherwise.</returns>
         public bool Set(string key, TValue? value, bool overwrite = true)
         {
             using (new ProfileScope(this, key))
@@ -362,10 +380,10 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Birden fazla key'e değer ataması yapar. Birden fazla key'e değer atanacaksa bu daha hızlı sonuç verir.
+        /// Sets values for multiple keys. If you need to assign values to multiple keys, this method provides faster results.
         /// </summary>
-        /// <param name="keyValues"></param>
-        /// <param name="overwrite">Üzerine yazılsın mı?</param>
+        /// <param name="keyValues">The key-value pairs to set.</param>
+        /// <param name="overwrite">Should it overwrite existing values?</param>
         /// <returns></returns>
         public async Task SetAsync(IDictionary<string, TValue?> keyValues, bool overwrite = true, bool serializeParallel = false, ParallelOptions? parallelOptions = null)
         {
@@ -376,10 +394,10 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Birden fazla key'e değer ataması yapar. Birden fazla key'e değer atanacaksa bu daha hızlı sonuç verir.
+        /// Sets values for multiple keys. If you need to assign values to multiple keys, this method provides faster results.
         /// </summary>
-        /// <param name="keyValues"></param>
-        /// <param name="overwrite">Üzerine yazılsın mı?</param>
+        /// <param name="keyValues">The key-value pairs to set.</param>
+        /// <param name="overwrite">Should it overwrite existing values?</param>
         /// <returns></returns>
         public void Set(IDictionary<string, TValue?> keyValues, bool overwrite = true, bool serializeParallel = false, ParallelOptions? parallelOptions = null)
         {
@@ -390,7 +408,7 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Store'un eleman sayısını verir.
+        /// Returns the number of elements in the store.
         /// </summary>
         /// <returns></returns>
         public async Task<long> CountAsync()
@@ -402,7 +420,7 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Store'un eleman sayısını verir.
+        /// Returns the number of elements in the store.
         /// </summary>
         /// <returns></returns>
         public long Count()
@@ -414,9 +432,9 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// İçeriği <see cref="Dictionary{TKey,TValue}"/> şeklinde çıktı verir.
+        /// Returns the content as a <see cref="Dictionary{TKey,TValue}"/>.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>A <see cref="Task"/> representing the asynchronous operation. The task result contains the content as a <see cref="Dictionary{TKey,TValue}"/>.</returns>
         public async Task<IDictionary<string, TValue?>> ToDictionaryAsync()
         {
             using (new ProfileScope(this, MasterKey))
@@ -426,9 +444,9 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// İçeriği <see cref="Dictionary{TKey,TValue}"/> şeklinde çıktı verir.
+        /// Returns the content as a <see cref="Dictionary{TKey,TValue}"/>.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>The content as a <see cref="Dictionary{TKey,TValue}"/>.</returns>
         public IDictionary<string, TValue?> ToDictionary()
         {
             using (new ProfileScope(this, MasterKey))
@@ -438,9 +456,9 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Store'daki keyleri döner.
+        /// Returns the keys in the store.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>A <see cref="Task"/> representing the asynchronous operation. The task result contains the keys in the store.</returns>
         public async Task<IList<string>> KeysAsync()
         {
             using (new ProfileScope(this, MasterKey))
@@ -450,9 +468,9 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Store'daki keyleri döner.
+        /// Returns the keys in the store.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>The keys in the store.</returns>
         public IList<string> Keys()
         {
             using (new ProfileScope(this, MasterKey))
@@ -462,9 +480,9 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Store'daki değerleri döner.
+        /// Returns the values in the store.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>A list of values in the store.</returns>
         public async Task<IList<TValue?>> ValuesAsync()
         {
             using (new ProfileScope(this, MasterKey))
@@ -474,9 +492,9 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Store'daki değerleri döner.
+        /// Returns the values in the store.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>A list of values in the store.</returns>
         public IList<TValue?> Values()
         {
             using (new ProfileScope(this, MasterKey))
@@ -486,12 +504,12 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Bir key'deki integer değeri <paramref name="value"/> kadar artırır.
+        /// Increments the integer value in a key by the specified <paramref name="value"/>.
         /// </summary>
-        /// <remarks>Varsayalın olarak 1 artırır.</remarks>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <returns></returns>
+        /// <remarks>By default, it increments by 1.</remarks>
+        /// <param name="key">The key of the value to increment.</param>
+        /// <param name="value">The value to increment by.</param>
+        /// <returns>The incremented value.</returns>
         public async Task<long> IncrementAsync(string key, long value)
         {
             using (new ProfileScope(this, key))
@@ -501,12 +519,12 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Bir key'deki integer değeri <paramref name="value"/> kadar artırır.
+        /// Increments the integer value in a key by the specified <paramref name="value"/>.
         /// </summary>
-        /// <remarks>Varsayalın olarak 1 artırır.</remarks>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <returns></returns>
+        /// <remarks>By default, it increments by 1.</remarks>
+        /// <param name="key">The key of the value to increment.</param>
+        /// <param name="value">The value to increment by.</param>
+        /// <returns>The incremented value.</returns>
         public long Increment(string key, long value)
         {
             using (new ProfileScope(this, key))
@@ -516,10 +534,10 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Bir key'deki serialize edilmiş verinin toplam boyutunu byte cinsinden döner.
+        /// Returns the total size of the serialized data in a key in bytes.
         /// </summary>
-        /// <param name="key"></param>
-        /// <returns></returns>
+        /// <param name="key">The key of the serialized data.</param>
+        /// <returns>The size of the serialized data in bytes.</returns>
         public async Task<long> SizeInBytesAsync(string key)
         {
             using (new ProfileScope(this, key))
@@ -529,10 +547,10 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Bir key'deki serialize edilmiş verinin toplam boyutunu byte cinsinden döner.
+        /// Returns the total size of the serialized data in bytes for a given key.
         /// </summary>
-        /// <param name="key"></param>
-        /// <returns></returns>
+        /// <param name="key">The key of the serialized data.</param>
+        /// <returns>The size of the serialized data in bytes.</returns>
         public long SizeInBytes(string key)
         {
             using (new ProfileScope(this, key))
@@ -542,38 +560,36 @@ namespace Nuve.DataStore
         }
 
         /// <summary>
-        /// Verilen key'e göre kilit oluşturur.
+        /// Creates a lock for the specified key.
         /// </summary>
-        /// <param name="key">Hangi key kilitlenecek</param>
-        /// <param name="waitTimeout"></param>
-        /// <param name="lockerExpire"></param>
-        /// <param name="action"></param>
-        /// <param name="skipWhenTimeout">Timeout olduğunda çalıştırılacak olan aksiyon geçilsin mi?</param>
-        /// <param name="throwWhenTimeout">Timeout olduğunda <see cref="TimeoutException"/> fırlatılsın mı?</param>
-        public void Lock(string key, TimeSpan waitTimeout, TimeSpan lockerExpire, Action action, bool skipWhenTimeout = true, bool throwWhenTimeout = false)
+        /// <param name="key">The key to create a lock for.</param>
+        /// <param name="waitTimeout">The maximum time to wait for the lock.</param>
+        /// <param name="action">The action to perform when the lock is acquired.</param>
+        /// <param name="skipWhenTimeout">Should the action be skipped when a timeout occurs?</param>
+        /// <param name="throwWhenTimeout">Should a TimeoutException be thrown when a timeout occurs?</param>
+        public void Lock(string key, TimeSpan waitTimeout, Action action, bool skipWhenTimeout = true, bool throwWhenTimeout = false, TimeSpan? slidingExpire = null)
         {
             var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
             using (new ProfileScope(this, lockKey))
             {
-                Provider.Lock(lockKey, waitTimeout, lockerExpire, action, skipWhenTimeout, throwWhenTimeout);
+                Provider.Lock(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
             }
         }
 
         /// <summary>
-        /// Verilen key'e göre kilit oluşturur.
+        /// Creates a lock for the specified key.
         /// </summary>
-        /// <param name="key">Hangi key kilitlenecek</param>
-        /// <param name="waitTimeout"></param>
-        /// <param name="lockerExpire"></param>
-        /// <param name="action"></param>
-        /// <param name="skipWhenTimeout">Timeout olduğunda çalıştırılacak olan aksiyon geçilsin mi?</param>
-        /// <param name="throwWhenTimeout">Timeout olduğunda <see cref="TimeoutException"/> fırlatılsın mı?</param>
-        public async Task LockAsync(string key, TimeSpan waitTimeout, TimeSpan lockerExpire, Func<Task> action, bool skipWhenTimeout = true, bool throwWhenTimeout = false)
+        /// <param name="key">The key to create a lock for.</param>
+        /// <param name="waitTimeout">The maximum time to wait for the lock.</param>
+        /// <param name="action">The action to perform when the lock is acquired.</param>
+        /// <param name="skipWhenTimeout">Should the action be skipped when a timeout occurs?</param>
+        /// <param name="throwWhenTimeout">Should a TimeoutException be thrown when a timeout occurs?</param>
+        public async Task LockAsync(string key, TimeSpan waitTimeout, Func<Task> action, bool skipWhenTimeout = true, bool throwWhenTimeout = false, TimeSpan? slidingExpire = null)
         {
             var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
             using (new ProfileScope(this, lockKey))
             {
-                await Provider.LockAsync(lockKey, waitTimeout, lockerExpire, action, skipWhenTimeout, throwWhenTimeout);
+                await Provider.LockAsync(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
             }
         }
 
