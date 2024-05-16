@@ -60,15 +60,15 @@ public static class RedisExtension
             AppDomain.CurrentDomain.ProcessExit += (s, e) => _shutdownToken.Cancel();
         }
 
-        private static readonly Thread _slidingExpirationThread = new Thread(SlidingExpirationWorker) { IsBackground = true, Name = "RedisLockSlidingExpiration" };
-        private static readonly ConcurrentDictionary<Lock, object> _locks = new ConcurrentDictionary<Lock, object>();
-        private static readonly EventWaitHandle _waitHandle = new AutoResetEvent(false);
+        private static readonly Thread _slidingExpirationThread = new (SlidingExpirationWorker) { IsBackground = true, Name = "RedisLockSlidingExpiration" };
+        private static readonly ConcurrentDictionary<Lock, object> _locks = new ();
+        private static readonly EventWaitHandle _waitUntilHasAnyLock = new AutoResetEvent(false);
 
         private static void SlidingExpirationWorker()
         {
             while (!_shutdownToken.IsCancellationRequested)
             {
-                _waitHandle.WaitOne();
+                _waitUntilHasAnyLock.WaitOne();
 
                 foreach (var kv in _locks)
                 {
@@ -96,10 +96,8 @@ public static class RedisExtension
                 }
 
                 Thread.Sleep(CheckSlidingExpirationMs);
-                if (_locks.IsEmpty)
-                    _waitHandle.Reset();
-                else
-                    _waitHandle.Set();
+                if (!_locks.IsEmpty)
+                    _waitUntilHasAnyLock.Set();
             }
 
 
@@ -163,7 +161,7 @@ public static class RedisExtension
                 {
                     LockAchieved = DateTimeOffset.UtcNow;
                     _locks[this] = new object();
-                    _waitHandle.Set();
+                    _waitUntilHasAnyLock.Set();
                 }   
             }
         }
@@ -207,7 +205,7 @@ public static class RedisExtension
                 {
                     LockAchieved = DateTimeOffset.UtcNow;
                     _locks[this] = new object();
-                    _waitHandle.Set();
+                    _waitUntilHasAnyLock.Set();
                 }
             }
         }
