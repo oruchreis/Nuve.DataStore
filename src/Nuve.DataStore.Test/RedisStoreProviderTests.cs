@@ -36,25 +36,19 @@ public class RedisStoreProviderTests
         {            
             var lockObj = (RedisExtension.Lock)lockItem;
             Assert.IsNotNull(lockObj.LockAchieved);
-            Console.WriteLine("lock achieved: {0}",lockObj.LockAchieved.Value.ToString("mm:ss.fff"));
+            Console.WriteLine("{0:hh:mm:ss.fff}\tlock achieved: {1:hh:mm:ss.fff}", DateTimeOffset.UtcNow, lockObj.LockAchieved);
             var ttl = provider.GetExpire("test-lock");
-            Console.WriteLine("lock-ttl at start: {0}", ttl.Value.TotalMilliseconds);
-            Assert.IsTrue(ttl.Value.TotalMilliseconds > 5000); // ttl must close to 6sn
-            Thread.Sleep(3500);
-            Console.WriteLine("lock achieved: {0}", lockObj.LockAchieved.Value.ToString("mm:ss.fff"));
-            ttl = provider.GetExpire("test-lock"); //after 3sn sliding expiraration must be executed and lock must be extended to 6sn
-            Console.WriteLine("lock-ttl after 3sn: {0}", ttl.Value.TotalMilliseconds);
-            Assert.IsTrue(ttl.Value.TotalMilliseconds > 5000); // ttl must close to 6sn
-            Thread.Sleep(3500);
-            Console.WriteLine("lock achieved: {0}", lockObj.LockAchieved.Value.ToString("mm:ss.fff"));
-            ttl = provider.GetExpire("test-lock");
-            Console.WriteLine("lock-ttl after 6sn: {0}", ttl.Value.TotalMilliseconds);
-            Assert.IsTrue(ttl.Value.TotalMilliseconds > 5000);
-            Thread.Sleep(8000); //one last check
-            Console.WriteLine("lock achieved: {0}", lockObj.LockAchieved.Value.ToString("mm:ss.fff"));
-            ttl = provider.GetExpire("test-lock");
-            Console.WriteLine("lock-ttl after 14sn: {0}", ttl.Value.TotalMilliseconds);
-            Assert.IsTrue(ttl.Value.TotalMilliseconds > 0);
+            Console.WriteLine("lock-ttl at start: {0}", ttl!.Value.TotalMilliseconds);
+            Assert.IsTrue(ttl.Value.TotalMilliseconds > (slidingExpire.TotalMilliseconds - 1000)); // ttl must close to slidingExpire
+            for (int i = 0; i < 3; i++)
+            {
+                Console.WriteLine("Test iteration: {0}", i);
+                Thread.Sleep(Math.Max((int)ttl.Value.TotalMilliseconds - ((int)slidingExpire.TotalMilliseconds / 2) + RedisExtension.Lock.CheckSlidingExpirationMs + 500, 1));
+                Console.WriteLine("{0:hh:mm:ss.fff}\tlock achieved after halflife: {1:hh:mm:ss.fff}", DateTimeOffset.UtcNow, lockObj.LockAchieved);
+                ttl = provider.GetExpire("test-lock"); //after halflife sliding expiraration must be executed and lock must be extended to slidingExpire
+                Console.WriteLine("lock-ttl after after halflife: {0}", ttl!.Value.TotalMilliseconds);
+                Assert.IsTrue(ttl.Value.TotalMilliseconds > (slidingExpire.TotalMilliseconds - 1000)); // ttl must close to slidingExpire
+            }
         }, throwWhenTimeout: true, slidingExpire: slidingExpire);
 
         Assert.IsFalse(((IKeyValueStoreProvider)provider).Contains("test-lock"));

@@ -52,7 +52,7 @@ public static class RedisExtension
 
     internal sealed class Lock : IDisposable
     {
-        private const int CheckSlidingExpirationMs = 500;
+        internal const int CheckSlidingExpirationMs = 500;
         private static readonly CancellationTokenSource _shutdownToken = new CancellationTokenSource();
         static Lock()
         {
@@ -126,74 +126,88 @@ public static class RedisExtension
 
         public void TryAcquireLock()
         {
-            var lockAchieved = _redis.LockTake(Key, Token, SlidingExpire);
-            if (lockAchieved)
-                return;
-            using var cts = new CancellationTokenSource(Timeout);
-            var timedout = false;
-            cts.Token.Register(() => timedout = true);
-            var loopCount = 1;
-            while (!lockAchieved && !cts.IsCancellationRequested)
+            var lockAchieved = false;
+            try
             {
+                lockAchieved = _redis.LockTake(Key, Token, SlidingExpire);
+                if (lockAchieved)
+                    return;
+                using var cts = new CancellationTokenSource(Timeout);
+                var timedout = false;
+                cts.Token.Register(() => timedout = true);
+                var loopCount = 1;
+                while (!lockAchieved && !cts.IsCancellationRequested)
+                {
 #if NET48
                 Thread.Sleep(TimeSpan.FromTicks(_sleepTime.Ticks * Math.Min(loopCount, 10))); //waiting maximum 10 times of _sleepTime
 #else
                     Thread.Sleep(_sleepTime * Math.Min(loopCount, 10)); //waiting maximum 10 times of _sleepTime
 #endif
-                lockAchieved = _redis.LockTake(Key, Token, SlidingExpire);
-                loopCount++;
-            }
-            if (timedout && !lockAchieved)
-                throw new TimeoutException($"The key '{Key}' has remained locked during timeout.")
-                {
-                    Data = {
+                    lockAchieved = _redis.LockTake(Key, Token, SlidingExpire);
+                    loopCount++;
+                }
+                if (timedout && !lockAchieved)
+                    throw new TimeoutException($"The key '{Key}' has remained locked during timeout.")
+                    {
+                        Data = {
                             ["Connection"] = _redis.Multiplexer.Configuration,
                             ["Key"] = Key,
                             ["Retry Count"] = loopCount,
                             ["Timeout"] = Timeout
                         }
-                };
-            if (lockAchieved)
-                LockAchieved = DateTimeOffset.UtcNow;
+                    };
+            }
+            finally
+            {
+                if (lockAchieved)
+                    LockAchieved = DateTimeOffset.UtcNow;
+            }
         }
 
         public async Task TryAcquireLockAsync()
         {
-            var lockAchieved = await _redis.LockTakeAsync(Key, Token, SlidingExpire);
-            if (lockAchieved)
-                return;
-            using var cts = new CancellationTokenSource(Timeout);
-            var timedout = false;
-            cts.Token.Register(() => timedout = true);
-            var loopCount = 1;
-            while (!lockAchieved && !cts.IsCancellationRequested)
+            var lockAchieved = false;
+            try
             {
+                lockAchieved = await _redis.LockTakeAsync(Key, Token, SlidingExpire);
+                if (lockAchieved)
+                    return;
+                using var cts = new CancellationTokenSource(Timeout);
+                var timedout = false;
+                cts.Token.Register(() => timedout = true);
+                var loopCount = 1;
+                while (!lockAchieved && !cts.IsCancellationRequested)
+                {
 #if NET48
                 await Task.Delay(TimeSpan.FromTicks(_sleepTime.Ticks * Math.Min(loopCount, 10))); //waiting maximum 10 times of _sleepTime
 #else
                     await Task.Delay(_sleepTime * Math.Min(loopCount, 10)); //waiting maximum 10 times of _sleepTime
 #endif
-                lockAchieved = await _redis.LockTakeAsync(Key, Token, SlidingExpire);
-                loopCount++;
-            }
-            if (timedout && !lockAchieved)
-                throw new TimeoutException($"The key '{Key}' has remained locked during timeout.")
-                {
-                    Data = {
+                    lockAchieved = await _redis.LockTakeAsync(Key, Token, SlidingExpire);
+                    loopCount++;
+                }
+                if (timedout && !lockAchieved)
+                    throw new TimeoutException($"The key '{Key}' has remained locked during timeout.")
+                    {
+                        Data = {
                             ["Connection"] = _redis.Multiplexer.Configuration,
                             ["Key"] = Key,
                             ["Retry Count"] = loopCount,
                             ["Timeout"] = Timeout
                         }
-                };
-            if (lockAchieved)
-                LockAchieved = DateTimeOffset.UtcNow;
+                    };
+            }
+            finally
+            {
+                if (lockAchieved)
+                    LockAchieved = DateTimeOffset.UtcNow;
+            }
         }
 
         public void Dispose()
         {
             _locks.TryRemove(this, out var syncObj);
-            lock (syncObj)
+            lock (syncObj!)
             {
                 _redis.LockRelease(Key, Token);
             }
