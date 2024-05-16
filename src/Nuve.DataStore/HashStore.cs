@@ -8,7 +8,7 @@ using Nuve.DataStore.Helpers;
 namespace Nuve.DataStore;
 
 /// <summary>
-/// Çok tipli Dictionary yapısı. <see cref="DictionaryStore{TValue}"/>'dan farklı olarak her bir işlemde tip belirtilmesi gerekmektedir.
+/// Multi-type Dictionary structure. Unlike <see cref="DictionaryStore{TValue}"/>, type must be specified for each operation.
 /// </summary>
 public sealed class HashStore : DataStoreBase
 {
@@ -16,17 +16,16 @@ public sealed class HashStore : DataStoreBase
     private static readonly string _typeName = typeof(HashStore).GetFriendlyName();
 
     /// <summary>
-    /// Dictionary değer tutan store yapısı. 
+    /// Store structure that holds dictionary values.
     /// </summary>
-    /// <param name="masterKey">Bu dictionary hangi key altında saklanacak</param>
-    /// <param name="connectionName">Config'de tanımlı bağlantı ismi</param>
-    /// <param name="defaultExpire">Varsayılan expire süresi.</param>
-    /// <param name="autoPing">Her işlemde otomatik olarak Ping yapılsın mı?</param>
-    /// <param name="namespaceSeperator">Namespace'leri ayırmak için kullanılan ayraç. Varsayılan olarak ":"dir. </param>
-    /// <param name="overrideRootNamespace">Bağlantıya tanımlı root alan adını değiştirmek için kullanılır.</param>
-    /// <param name="serializer">Varsayılan serializer yerine başka bir serializer kullanmak istiyorsanız bunu setleyin.</param>
-    /// <param name="profiler">Özel olarak sadece bu data store'un metodlarını profile etmek için kullanılır. 
-    /// Setlense de setlenmese de <see cref="DataStoreManager"/>'a kayıtlı global profiler kullanılır.</param>
+    /// <param name="masterKey">Under which key this dictionary will be stored</param>
+    /// <param name="connectionName">Connection name defined in the config</param>
+    /// <param name="defaultExpire">Default expiration time</param>
+    /// <param name="autoPing">Should automatic Ping be performed for each operation?</param>
+    /// <param name="namespaceSeperator">Separator used to separate namespaces. Default is ":"</param>
+    /// <param name="overrideRootNamespace">Used to change the defined root namespace for the connection</param>
+    /// <param name="serializer">Set this if you want to use a different serializer instead of the default one</param>
+    /// <param name="profiler">Used to profile only the methods of this data store. The global profiler registered in <see cref="DataStoreManager"/> is used whether it is set or not.</param>
     public HashStore(string masterKey, string? connectionName = null, TimeSpan? defaultExpire = null, bool autoPing = false,
         string? namespaceSeperator = null, string? overrideRootNamespace = null, IDataStoreSerializer? serializer = null, IDataStoreCompressor? compressor = null, IDataStoreProfiler? profiler = null,
         int? compressBiggerThan = null) :
@@ -42,12 +41,12 @@ public sealed class HashStore : DataStoreBase
     internal override string TypeName => _typeName;
 
     /// <summary>
-    /// Store yapısının tutulduğu tam yol.
+    /// The full path where the store is located.
     /// </summary>
     public readonly string MasterKey;
 
     /// <summary>
-    /// Bu store mevcut mu?
+    /// Is this store exists?
     /// </summary>
     /// <returns></returns>
     public async Task<bool> IsExistsAsync()
@@ -59,7 +58,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Store'un <see cref="DataStoreBase.DefaultExpire"/> özelliği setli ise expire süresini bu süreye sıfırlar.
+    /// If the <see cref="DataStoreBase.DefaultExpire"/> property of the store is set, it resets the expire time to this value.
     /// </summary>
     /// <returns></returns>
     public async Task<bool> PingAsync()
@@ -71,21 +70,41 @@ public sealed class HashStore : DataStoreBase
     {
         action();
         if (AutoPing)
-            Task.Run(() => Ping());
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await PingAsync();
+                }
+                catch (Exception e)
+                {
+                    //intentionally supressed
+                }
+            });
     }
 
     private T CheckAutoPing<T>(Func<T> func)
     {
         var result = func();
         if (AutoPing)
-            Task.Run(() => Ping());
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await PingAsync();
+                }
+                catch (Exception e)
+                {
+                    //intentionally supressed
+                }
+            });
         return result;
     }
 
     /// <summary>
-    /// MasterKey'in geçerlilik süresi
+    /// Gets the expiration time of the MasterKey.
     /// </summary>
-    /// <returns></returns>
+    /// <returns>The expiration time as a TimeSpan.</returns>
     public async Task<TimeSpan?> GetExpireAsync()
     {
         using (new ProfileScope(this, MasterKey))
@@ -95,13 +114,13 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Ekleme yapar.
+    /// Adds a key-value pair to the store.
     /// </summary>
-    /// <typeparam name="TValue"></typeparam>
-    /// <param name="key"></param>
-    /// <param name="value"></param>
-    /// <param name="overwrite">Üzerine yazılsın mı?</param>
-    /// <returns></returns>
+    /// <typeparam name="TValue">The type of the value.</typeparam>
+    /// <param name="key">The key.</param>
+    /// <param name="value">The value.</param>
+    /// <param name="overwrite">Whether to overwrite the existing value if the key already exists.</param>
+    /// <returns>True if the addition is successful, otherwise false.</returns>
     public async Task<bool> AddAsync<TValue>(string key, TValue value, bool overwrite = true)
     {
         using (new ProfileScope(this, key))
@@ -111,9 +130,9 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Store silinir.
+    /// Clears the store.
     /// </summary>
-    /// <returns></returns>
+    /// <returns>True if the store is cleared successfully, otherwise false.</returns>
     public async Task<bool> ClearAsync()
     {
         using (new ProfileScope(this, MasterKey))
@@ -123,10 +142,10 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Bir key'in olup olmadığını döner.
+    /// Checks if a key exists in the store.
     /// </summary>
-    /// <param name="key"></param>
-    /// <returns></returns>
+    /// <param name="key">The key to check.</param>
+    /// <returns>True if the key exists, otherwise false.</returns>
     public async Task<bool> ContainsKeyAsync(string key)
     {
         using (new ProfileScope(this, key))
@@ -136,12 +155,12 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Key-value ikilisinin olup olamdığını döner.
+    /// Checks if a key-value pair exists in the store.
     /// </summary>
-    /// <typeparam name="TValue"></typeparam>
-    /// <param name="key"></param>
-    /// <param name="value"></param>
-    /// <returns></returns>
+    /// <typeparam name="TValue">The type of the value.</typeparam>
+    /// <param name="key">The key.</param>
+    /// <param name="value">The value.</param>
+    /// <returns>True if the key-value pair exists, otherwise false.</returns>
     public async Task<bool> ContainsAsync<TValue>(string key, TValue value)
     {
         using (new ProfileScope(this, key))
@@ -156,9 +175,8 @@ public sealed class HashStore : DataStoreBase
                 });
         }
     }
-
     /// <summary>
-    /// Keyleri store'dan kaldırır.
+    /// Removes keys from the store.
     /// </summary>
     /// <param name="keys"></param>
     /// <returns></returns>
@@ -173,7 +191,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Bir key'in değerini getirir.
+    /// Retrieves the value of a key.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
     /// <param name="key"></param>
@@ -187,7 +205,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Bir key'in değerini getirir.
+    /// Retrieves the value of a key.
     /// </summary>
     /// <param name="key"></param>
     /// <param name="type"></param>
@@ -201,7 +219,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Birden fazla key'in değerini getirir. Birden fazla key sorgusu için bunu kullanın.
+    /// Retrieves the values of multiple keys. Use this for querying multiple keys.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
     /// <param name="keys"></param>
@@ -215,7 +233,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Birden fazla key'in değerini getirir. Birden fazla key sorgusu için bunu kullanın.
+    /// Retrieves the values of multiple keys. Use this for querying multiple keys.
     /// </summary>
     /// <param name="keysTypes"></param>
     /// <returns></returns>
@@ -228,12 +246,12 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Bir key'e değer ataması yapar.
+    /// Sets a value for a key.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
     /// <param name="key"></param>
     /// <param name="value"></param>
-    /// <param name="overwrite">Üzerine yazılsın mı?</param>
+    /// <param name="overwrite">Should it overwrite?</param>
     /// <returns></returns>
     public async Task<bool> SetAsync<TValue>(string key, TValue value, bool overwrite = true)
     {
@@ -244,23 +262,22 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Birden fazla key'e değer ataması yapar. Birden fazla key'e değer atanacaksa bu daha hızlı sonuç verir.
+    /// Assigns values to multiple keys. If multiple keys need to be assigned values, this method provides faster results.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
     /// <param name="keyValues"></param>
-    /// <param name="overwrite">Üzerine yazılsın mı?</param>
+    /// <param name="overwrite">Should it overwrite?</param>
     /// <returns></returns>
     public async Task SetAsync<TValue>(IDictionary<string, TValue?> keyValues, bool overwrite = true, bool serializeParallel = false, ParallelOptions? parallelOptions = null)
     {
         using (new ProfileScope(this, MasterKey))
         {
             await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, AsKeyValue(keyValues, serializeParallel, parallelOptions)));
-
         }
     }
 
     /// <summary>
-    /// Store'un eleman sayısını verir.
+    /// Returns the number of elements in the store.
     /// </summary>
     /// <returns></returns>
     public async Task<long> CountAsync()
@@ -270,9 +287,8 @@ public sealed class HashStore : DataStoreBase
             return await CheckAutoPing(async () => await _dictionaryStoreProvider.CountAsync(MasterKey));
         }
     }
-
     /// <summary>
-    /// İçeriği <see cref="Dictionary{TKey,TValue}"/> şeklinde çıktı verir.
+    /// Returns the content as a <see cref="Dictionary{TKey,TValue}"/>.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
     /// <returns></returns>
@@ -285,7 +301,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// İçeriği <see cref="Dictionary{TKey,TValue}"/> şeklinde çıktı verir.
+    /// Returns the content as a <see cref="Dictionary{TKey,TValue}"/>.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
     /// <returns></returns>
@@ -298,7 +314,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Store'daki keyleri döner.
+    /// Returns the keys in the store.
     /// </summary>
     /// <returns></returns>
     public async Task<IList<string>> KeysAsync()
@@ -310,7 +326,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Store'daki değerleri döner.
+    /// Returns the values in the store.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
     /// <returns></returns>
@@ -323,9 +339,9 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Bir key'deki integer değeri <paramref name="value"/> kadar artırır.
+    /// Increments the integer value in a key by the specified <paramref name="value"/>.
     /// </summary>
-    /// <remarks>Varsayalın olarak 1 artırır.</remarks>
+    /// <remarks>By default, it increments by 1.</remarks>
     /// <param name="key"></param>
     /// <param name="value"></param>
     /// <returns></returns>
@@ -338,7 +354,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Bir key'deki serialize edilmiş verinin toplam boyutunu byte cinsinden döner.
+    /// Returns the total size of the serialized data in bytes for a key.
     /// </summary>
     /// <param name="key"></param>
     /// <returns></returns>
@@ -351,43 +367,41 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Verilen key'e göre kilit oluşturur.
+    /// Creates a lock for the given key.
     /// </summary>
-    /// <param name="key">Hangi key kilitlenecek</param>
+    /// <param name="key">The key to be locked.</param>
     /// <param name="waitTimeout"></param>
-    /// <param name="lockerExpire"></param>
     /// <param name="action"></param>
-    /// <param name="skipWhenTimeout">Timeout olduğunda çalıştırılacak olan aksiyon geçilsin mi?</param>
-    /// <param name="throwWhenTimeout">Timeout olduğunda <see cref="TimeoutException"/> fırlatılsın mı?</param>
-    public void Lock(string key, TimeSpan waitTimeout, TimeSpan lockerExpire, Action action, bool skipWhenTimeout = true, bool throwWhenTimeout = false)
+    /// <param name="skipWhenTimeout">Should the action be skipped when a timeout occurs?</param>
+    /// <param name="throwWhenTimeout">Should a <see cref="TimeoutException"/> be thrown when a timeout occurs?</param>
+    public void Lock(string key, TimeSpan waitTimeout, Action action, bool skipWhenTimeout = true, bool throwWhenTimeout = false, TimeSpan? slidingExpire = null)
     {
         var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
         using (new ProfileScope(this, lockKey))
         {
-            Provider.Lock(lockKey, waitTimeout, lockerExpire, action, skipWhenTimeout, throwWhenTimeout);
+            Provider.Lock(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
         }
     }
 
     /// <summary>
-    /// Verilen key'e göre kilit oluşturur.
+    /// Creates a lock for the given key.
     /// </summary>
-    /// <param name="key">Hangi key kilitlenecek</param>
+    /// <param name="key">The key to be locked.</param>
     /// <param name="waitTimeout"></param>
-    /// <param name="lockerExpire"></param>
     /// <param name="action"></param>
-    /// <param name="skipWhenTimeout">Timeout olduğunda çalıştırılacak olan aksiyon geçilsin mi?</param>
-    /// <param name="throwWhenTimeout">Timeout olduğunda <see cref="TimeoutException"/> fırlatılsın mı?</param>
-    public async Task LockAsync(string key, TimeSpan waitTimeout, TimeSpan lockerExpire, Func<Task> action, bool skipWhenTimeout = true, bool throwWhenTimeout = false)
+    /// <param name="skipWhenTimeout">Should the action be skipped when a timeout occurs?</param>
+    /// <param name="throwWhenTimeout">Should a <see cref="TimeoutException"/> be thrown when a timeout occurs?</param>
+    public async Task LockAsync(string key, TimeSpan waitTimeout, Func<Task> action, bool skipWhenTimeout = true, bool throwWhenTimeout = false, TimeSpan? slidingExpire = null)
     {
         var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
         using (new ProfileScope(this, lockKey))
         {
-            await Provider.LockAsync(lockKey, waitTimeout, lockerExpire, action, skipWhenTimeout, throwWhenTimeout);
+            await Provider.LockAsync(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
         }
     }
 
     /// <summary>
-    /// Bu store mevcut mu?
+    /// Is this store exists?
     /// </summary>
     /// <returns></returns>
     public bool IsExists()
@@ -399,7 +413,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Store'un <see cref="DataStoreBase.DefaultExpire"/> özelliği setli ise expire süresini bu süreye sıfırlar.
+    /// Resets the expiration time to the value of <see cref="DataStoreBase.DefaultExpire"/> if set.
     /// </summary>
     /// <returns></returns>
     public bool Ping()
@@ -408,7 +422,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// MasterKey'in geçerlilik süresi
+    /// Expiration time of the MasterKey.
     /// </summary>
     /// <returns></returns>
     public TimeSpan? GetExpire()
@@ -420,13 +434,13 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Ekleme yapar.
+    /// Adds an item to the store.
     /// </summary>
-    /// <typeparam name="TValue"></typeparam>
-    /// <param name="key"></param>
-    /// <param name="value"></param>
-    /// <param name="overwrite">Üzerine yazılsın mı?</param>
-    /// <returns></returns>
+    /// <typeparam name="TValue">The type of the value.</typeparam>
+    /// <param name="key">The key of the item.</param>
+    /// <param name="value">The value of the item.</param>
+    /// <param name="overwrite">Should it overwrite if the item already exists?</param>
+    /// <returns>True if the item is added successfully, otherwise false.</returns>
     public bool Add<TValue>(string key, TValue value, bool overwrite = true)
     {
         using (new ProfileScope(this, key))
@@ -436,9 +450,9 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Store silinir.
+    /// Clears the store.
     /// </summary>
-    /// <returns></returns>
+    /// <returns>True if the store is cleared successfully, otherwise false.</returns>
     public bool Clear()
     {
         using (new ProfileScope(this, MasterKey))
@@ -448,10 +462,10 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Bir key'in olup olmadığını döner.
+    /// Checks if a key exists in the store.
     /// </summary>
-    /// <param name="key"></param>
-    /// <returns></returns>
+    /// <param name="key">The key to check.</param>
+    /// <returns>True if the key exists, otherwise false.</returns>
     public bool ContainsKey(string key)
     {
         using (new ProfileScope(this, key))
@@ -461,28 +475,27 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Key-value ikilisinin olup olamdığını döner.
+    /// Checks if a key-value pair exists in the store.
     /// </summary>
-    /// <typeparam name="TValue"></typeparam>
-    /// <param name="key"></param>
-    /// <param name="value"></param>
-    /// <returns></returns>
+    /// <typeparam name="TValue">The type of the value.</typeparam>
+    /// <param name="key">The key to check.</param>
+    /// <param name="value">The value to check.</param>
+    /// <returns>True if the key-value pair exists, otherwise false.</returns>
     public bool Contains<TValue>(string key, TValue value)
     {
         using (new ProfileScope(this, key))
         {
             return CheckAutoPing(() =>
-                                 {
-                                     var keyExists = _dictionaryStoreProvider.Contains(MasterKey, key);
-                                     if (!keyExists)
-                                         return false;
-                                     return EqualityComparer<TValue?>.Default.Equals(Get<TValue?>(key), value);
-                                 });
+            {
+                var keyExists = _dictionaryStoreProvider.Contains(MasterKey, key);
+                if (!keyExists)
+                    return false;
+                return EqualityComparer<TValue?>.Default.Equals(Get<TValue?>(key), value);
+            });
         }
     }
-
     /// <summary>
-    /// Keyleri store'dan kaldırır.
+    /// Removes keys from the store.
     /// </summary>
     /// <param name="keys"></param>
     /// <returns></returns>
@@ -497,7 +510,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Bir key'in değerini getirir.
+    /// Retrieves the value of a key.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
     /// <param name="key"></param>
@@ -511,7 +524,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Bir key'in değerini getirir.
+    /// Retrieves the value of a key.
     /// </summary>
     /// <param name="key"></param>
     /// <param name="type"></param>
@@ -525,7 +538,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Birden fazla key'in değerini getirir. Birden fazla key sorgusu için bunu kullanın.
+    /// Retrieves the values of multiple keys. Use this for querying multiple keys.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
     /// <param name="keys"></param>
@@ -537,9 +550,8 @@ public sealed class HashStore : DataStoreBase
             return CheckAutoPing(() => DictionaryResult<TValue?>(_dictionaryStoreProvider.Get(MasterKey, keys)));
         }
     }
-
     /// <summary>
-    /// Birden fazla key'in değerini getirir. Birden fazla key sorgusu için bunu kullanın.
+    /// Retrieves the values of multiple keys. Use this for querying multiple keys.
     /// </summary>
     /// <param name="keysTypes"></param>
     /// <returns></returns>
@@ -552,12 +564,12 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Bir key'e değer ataması yapar.
+    /// Sets a value for a key.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
     /// <param name="key"></param>
     /// <param name="value"></param>
-    /// <param name="overwrite">Üzerine yazılsın mı?</param>
+    /// <param name="overwrite">Should it overwrite?</param>
     /// <returns></returns>
     public bool Set<TValue>(string key, TValue value, bool overwrite = true)
     {
@@ -568,11 +580,11 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Birden fazla key'e değer ataması yapar. Birden fazla key'e değer atanacaksa bu daha hızlı sonuç verir.
+    /// Sets values for multiple keys. If you need to set values for multiple keys, this provides faster results.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
     /// <param name="keyValues"></param>
-    /// <param name="overwrite">Üzerine yazılsın mı?</param>
+    /// <param name="overwrite">Should it overwrite?</param>
     /// <returns></returns>
     public void Set<TValue>(IDictionary<string, TValue?> keyValues, bool overwrite = true, bool serializeParallel = false, ParallelOptions? parallelOptions = null)
     {
@@ -583,7 +595,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Store'un eleman sayısını verir.
+    /// Returns the number of elements in the store.
     /// </summary>
     /// <returns></returns>
     public long Count()
@@ -595,7 +607,7 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// İçeriği <see cref="Dictionary{TKey,TValue}"/> şeklinde çıktı verir.
+    /// Returns the content as a <see cref="Dictionary{TKey,TValue}"/>.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
     /// <returns></returns>
@@ -608,10 +620,10 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// İçeriği <see cref="Dictionary{TKey,TValue}"/> şeklinde çıktı verir.
+    /// Returns the content of the store as a dictionary.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
-    /// <returns></returns>
+    /// <returns>A dictionary containing the keys and values in the store.</returns>
     public IDictionary<string, object?> ToDictionary(IDictionary<string, Type> keysTypes)
     {
         using (new ProfileScope(this, MasterKey))
@@ -621,9 +633,9 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Store'daki keyleri döner.
+    /// Returns the keys in the store.
     /// </summary>
-    /// <returns></returns>
+    /// <returns>A list of keys in the store.</returns>
     public IList<string> Keys()
     {
         using (new ProfileScope(this, MasterKey))
@@ -633,10 +645,10 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Store'daki değerleri döner.
+    /// Returns the values in the store.
     /// </summary>
     /// <typeparam name="TValue"></typeparam>
-    /// <returns></returns>
+    /// <returns>A list of values in the store.</returns>
     public IList<TValue?> Values<TValue>()
     {
         using (new ProfileScope(this, MasterKey))
@@ -646,12 +658,12 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Bir key'deki integer değeri <paramref name="value"/> kadar artırır.
+    /// Increments the integer value in a key by the specified value.
     /// </summary>
-    /// <remarks>Varsayalın olarak 1 artırır.</remarks>
-    /// <param name="key"></param>
-    /// <param name="value"></param>
-    /// <returns></returns>
+    /// <remarks>By default, it increments by 1.</remarks>
+    /// <param name="key">The key of the value to increment.</param>
+    /// <param name="value">The value to increment by.</param>
+    /// <returns>The incremented value.</returns>
     public long Increment(string key, long value = 1)
     {
         using (new ProfileScope(this, key))
@@ -661,10 +673,10 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
-    /// Bir key'deki serialize edilmiş verinin toplam boyutunu byte cinsinden döner.
+    /// Returns the total size of the serialized value in bytes for a key.
     /// </summary>
-    /// <param name="key"></param>
-    /// <returns></returns>
+    /// <param name="key">The key of the value to get the size of.</param>
+    /// <returns>The size of the value in bytes.</returns>
     public long SizeInBytes(string key)
     {
         using (new ProfileScope(this, key))

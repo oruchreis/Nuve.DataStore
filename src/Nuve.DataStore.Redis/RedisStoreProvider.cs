@@ -272,13 +272,13 @@ public partial class RedisStoreProvider : IDataStoreProvider
         });
     }
 
-    void IDataStoreProvider.Lock(string lockKey, TimeSpan waitTimeout, TimeSpan lockerExpire, Action action, bool skipWhenTimeout, bool throwWhenTimeout)
+    void IDataStoreProvider.Lock(string lockKey, TimeSpan waitTimeout, Action action, TimeSpan slidingExpire, bool skipWhenTimeout, bool throwWhenTimeout)
     {
         try
         {
             RedisCall(Db =>
             {
-                using (Db.AcquireLock(lockKey, waitTimeout, lockerExpire))
+                using (Db.AcquireLock(lockKey, waitTimeout, slidingExpire))
                 {
                     action();
                 }
@@ -293,13 +293,13 @@ public partial class RedisStoreProvider : IDataStoreProvider
         }
     }
 
-    async Task IDataStoreProvider.LockAsync(string lockKey, TimeSpan waitTimeout, TimeSpan lockerExpire, Func<Task> action, bool skipWhenTimeout, bool throwWhenTimeout)
+    async Task IDataStoreProvider.LockAsync(string lockKey, TimeSpan waitTimeout, Func<Task> action, TimeSpan slidingExpire, bool skipWhenTimeout, bool throwWhenTimeout)
     {
         try
         {
             await RedisCallAsync(async Db =>
             {
-                using (await Db.AcquireLockAsync(lockKey, waitTimeout, lockerExpire))
+                using (await Db.AcquireLockAsync(lockKey, waitTimeout, slidingExpire))
                 {
                     await action();
                 }

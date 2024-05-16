@@ -3,9 +3,9 @@
     <AssemblyTitle>Nuve.DataStore.Serializer.JsonNet</AssemblyTitle>
     <AssemblyName>Nuve.DataStore.Serializer.JsonNet</AssemblyName>    
     <PackageId>Nuve.DataStore.Serializer.JsonNet</PackageId>
-    <Version>1.2.5</Version>
-    <AssemblyVersion>1.2.5</AssemblyVersion>
-    <FileVersion>1.2.5</FileVersion>
+    <Version>1.2.6</Version>
+    <AssemblyVersion>1.2.6</AssemblyVersion>
+    <FileVersion>1.2.6</FileVersion>
     <PackageProjectUrl>https://github.com/oruchreis/Nuve.DataStore</PackageProjectUrl>
     <RepositoryUrl>https://github.com/oruchreis/Nuve.DataStore.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

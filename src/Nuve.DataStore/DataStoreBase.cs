@@ -4,7 +4,7 @@ using System.Diagnostics;
 namespace Nuve.DataStore;
 
 /// <summary>
-/// DataStore yapıları için base sınıf.
+/// Base class for DataStore structures.
 /// </summary>
 public abstract class DataStoreBase
 {
@@ -16,16 +16,15 @@ public abstract class DataStoreBase
     private readonly int? _compressBiggerThan;
 
     /// <summary>
-    /// Tüm DataStore yapıları için base sınıf.
+    /// Base class for all DataStore structures.
     /// </summary>
-    /// <param name="connectionName">Config'de tanımlı bağlantı ismi</param>
-    /// <param name="defaultExpire">Varsayılan expire süresi.</param>
-    /// <param name="autoPing">Her işlemde otomatik olarak <see cref="Ping"/> yapılsın mı?</param>
-    /// <param name="namespaceSeperator">Namespace'leri ayırmak için kullanılan ayraç. Varsayılan olarak ":"dir. </param>
-    /// <param name="overrideRootNamespace">Bağlantıya tanımlı root alan adını değiştirmek için kullanılır.</param>
-    /// <param name="serializer">Varsayılan serializer yerine başka bir serializer kullanmak istiyorsanız bunu setleyin.</param>
-    /// <param name="profiler">Özel olarak sadece bu data store'un metodlarını profile etmek için kullanılır. 
-    /// Setlense de setlenmese de <see cref="DataStoreManager"/>'a kayıtlı global profiler kullanılır.</param>
+    /// <param name="connectionName">Connection name defined in the config.</param>
+    /// <param name="defaultExpire">Default expiration time.</param>
+    /// <param name="autoPing">Should <see cref="Ping"/> be automatically called for each operation?</param>
+    /// <param name="namespaceSeperator">Separator used to separate namespaces. Default is ":".</param>
+    /// <param name="overrideRootNamespace">Used to override the root namespace defined in the connection.</param>
+    /// <param name="serializer">Set this if you want to use a different serializer instead of the default one.</param>
+    /// <param name="profiler">Used to profile only the methods of this data store. The global profiler registered in <see cref="DataStoreManager"/> is used whether it is set or not.</param>
     protected DataStoreBase(string? connectionName = null, TimeSpan? defaultExpire = null, bool autoPing = false,
         string? namespaceSeperator = null, string? overrideRootNamespace = null,
         IDataStoreSerializer? serializer = null, IDataStoreCompressor? compressor = null,
@@ -45,13 +44,13 @@ public abstract class DataStoreBase
     }
 
     /// <summary>
-    /// Varsayılan expire süresi.
+    /// Default expiration time.
     /// </summary>
     public TimeSpan DefaultExpire { get; private set; }
 
     private volatile bool _autoPing;
     /// <summary>
-    /// Her işlemde otomatik olarak <see cref="Ping"/> yapılsın mı?
+    /// Should <see cref="Ping"/> be automatically called for each operation?
     /// </summary>
     public bool AutoPing
     {
@@ -66,10 +65,10 @@ public abstract class DataStoreBase
     }
 
     /// <summary>
-    /// Bir key'in expire süresini varsayılan expire süresine sıfırlar.
+    /// Resets the expiration time of a key to the default expiration time.
     /// </summary>
-    /// <param name="key"></param>
-    /// <returns></returns>
+    /// <param name="key">The key to reset the expiration time for.</param>
+    /// <returns>Returns a task that represents the asynchronous operation. The task result is a boolean value indicating whether the expiration time was successfully reset.</returns>
     protected virtual async Task<bool> PingAsync(string key)
     {
         var defaultExpire = DefaultExpire;
@@ -82,10 +81,10 @@ public abstract class DataStoreBase
     }
 
     /// <summary>
-    /// Bir key'in expire süresini varsayılan expire süresine sıfırlar.
+    /// Resets the expiration time of a key to the default expiration time.
     /// </summary>
-    /// <param name="key"></param>
-    /// <returns></returns>
+    /// <param name="key">The key to reset the expiration time for.</param>
+    /// <returns>Returns a boolean value indicating whether the expiration time was successfully reset.</returns>
     protected virtual bool Ping(string key)
     {
         var defaultExpire = DefaultExpire;
@@ -96,14 +95,13 @@ public abstract class DataStoreBase
             return Provider.SetExpire(key, defaultExpire);
         }
     }
-
     /// <summary>
-    /// Namespace'in ayracı
+    /// Separator for the namespace.
     /// </summary>
     public string NamespaceSeperator { get; private set; }
 
     /// <summary>
-    /// Root namespace ile birleştirme işlemleri için ortak nokta.
+    /// Common point for joining with the root namespace.
     /// </summary>
     /// <param name="path"></param>
     /// <returns></returns>
@@ -116,7 +114,7 @@ public abstract class DataStoreBase
     }
 
     /// <summary>
-    /// Root namespace ile birleştirme işlemleri için ortak nokta.
+    /// Common point for joining with the root namespace.
     /// </summary>
     /// <param name="paths"></param>
     /// <returns></returns>
@@ -127,7 +125,7 @@ public abstract class DataStoreBase
     }
 
     /// <summary>
-    /// Root namespace ile birleştirme işlemleri için ortak nokta.
+    /// Common point for joining with the root namespace.
     /// </summary>
     /// <param name="paths"></param>
     /// <returns></returns>
@@ -138,7 +136,7 @@ public abstract class DataStoreBase
     }
 
     /// <summary>
-    /// Root namespace ile birleştirme işlemleri için ortak nokta.
+    /// Common point for joining with the root namespace.
     /// </summary>
     /// <param name="pathsWithValues"></param>
     /// <returns></returns>
@@ -186,9 +184,8 @@ public abstract class DataStoreBase
         _compressor.Decompress(uncompressedStream, compressedData);
         return uncompressedStream.ToArray();
     }
-
     /// <summary>
-    /// Tek değeri deserialize etmek için yardımcı metod.
+    /// Helper method for deserializing a single value.
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <param name="result"></param>
@@ -200,7 +197,7 @@ public abstract class DataStoreBase
     }
 
     /// <summary>
-    /// Tek değeri deserialize etmek için yardımcı metod.
+    /// Helper method for deserializing a single value.
     /// </summary>
     /// <param name="result"></param>
     /// <param name="type"></param>
@@ -212,7 +209,7 @@ public abstract class DataStoreBase
     }
 
     /// <summary>
-    /// Dictionary olarak deserialize etmek için yardımcı metod.
+    /// Helper method for deserializing a dictionary.
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <param name="result"></param>
@@ -232,11 +229,11 @@ public abstract class DataStoreBase
     }
 
     /// <summary>
-    /// Dictionary olarak deserialize etmek için yardımcı metod.
+    /// Helper method for deserializing a dictionary.
     /// </summary>
-    /// <param name="result"></param>
-    /// <param name="types"></param>
-    /// <returns></returns>
+    /// <param name="result">The dictionary to deserialize.</param>
+    /// <param name="types">The types of the values in the dictionary.</param>
+    /// <returns>Returns a dictionary with deserialized values.</returns>
     [DebuggerStepThrough]
     protected IDictionary<string, object?> DictionaryResult(IDictionary<string, byte[]> result, IDictionary<string, Type> types)
     {
@@ -249,11 +246,11 @@ public abstract class DataStoreBase
     }
 
     /// <summary>
-    /// List olarak deserialize etmek için yardımcı metod.
+    /// Helper method for deserializing a list.
     /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="result"></param>
-    /// <returns></returns>
+    /// <typeparam name="T">The type of the elements in the list.</typeparam>
+    /// <param name="result">The list to deserialize.</param>
+    /// <returns>Returns a list with deserialized elements.</returns>
     [DebuggerStepThrough]
     protected IList<T?> ListResult<T>(IList<byte[]> result)
     {
@@ -269,11 +266,11 @@ public abstract class DataStoreBase
     }
 
     /// <summary>
-    /// HashSet olarak deserialize etmek için yardımcı metod.
+    /// Helper method for deserializing a HashSet.
     /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="result"></param>
-    /// <returns></returns>
+    /// <typeparam name="T">The type of the elements in the HashSet.</typeparam>
+    /// <param name="result">The HashSet to deserialize.</param>
+    /// <returns>Returns a HashSet with deserialized elements.</returns>
     [DebuggerStepThrough]
     protected HashSet<T?> HashSetResult<T>(HashSet<byte[]> result)
     {
@@ -289,11 +286,11 @@ public abstract class DataStoreBase
     }
 
     /// <summary>
-    /// Provider'a parametreleri serialize edip yollamak için yardımcı metod.
+    /// Helper method for serializing a value to be sent to the Provider.
     /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="value"></param>
-    /// <returns></returns>
+    /// <typeparam name="T">The type of the value to serialize.</typeparam>
+    /// <param name="value">The value to serialize.</param>
+    /// <returns>Returns the serialized value as a byte array.</returns>
     [DebuggerStepThrough]
     protected byte[] AsValue<T>(T? value)
     {
@@ -306,11 +303,11 @@ public abstract class DataStoreBase
     }
 
     /// <summary>
-    /// Provider'a parametreleri serialize edip yollamak için yardımcı metod.
+    /// Helper method for serializing and sending parameters to the Provider.
     /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="values"></param>
-    /// <returns></returns>
+    /// <typeparam name="T">The type of the values to serialize.</typeparam>
+    /// <param name="values">The values to serialize.</param>
+    /// <returns>Returns a two-dimensional byte array containing the serialized values.</returns>
     [DebuggerStepThrough]
     protected byte[][] AsValues<T>(IList<T?> values)
     {
@@ -320,11 +317,13 @@ public abstract class DataStoreBase
     }
 
     /// <summary>
-    /// Provider'a parametreleri serialize edip yollamak için yardımcı metod.
+    /// Helper method for serializing and sending parameters to the Provider.
     /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="keyValues"></param>
-    /// <returns></returns>
+    /// <typeparam name="T">The type of the values to serialize.</typeparam>
+    /// <param name="keyValues">The key-value pairs to serialize.</param>
+    /// <param name="serializeParallel">Indicates whether to serialize the key-value pairs in parallel.</param>
+    /// <param name="parallelOptions">Options for parallel execution, such as the maximum degree of parallelism.</param>
+    /// <returns>Returns a dictionary where the keys are strings and the values are byte arrays containing the serialized values.</returns>
     [DebuggerStepThrough]
     protected IDictionary<string, byte[]> AsKeyValue<T>(IDictionary<string, T?> keyValues, bool serializeParallel = false, ParallelOptions? parallelOptions = null)
     {

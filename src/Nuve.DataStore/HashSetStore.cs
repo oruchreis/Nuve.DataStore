@@ -4,7 +4,7 @@ using Nuve.DataStore.Helpers;
 namespace Nuve.DataStore;
 
 /// <summary>
-/// Küme işlemlerinin yapılabildiği store yapısı. <see cref="HashSet{T}"/> yapısına benzer.
+/// A store structure that allows set operations similar to <see cref="HashSet{T}"/>.
 /// </summary>
 /// <typeparam name="TValue"></typeparam>
 public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOnlyCollection<TValue?>
@@ -14,22 +14,21 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     private static readonly string _typeName = typeof(HashSetStore<TValue>).GetFriendlyName();
 
     /// <summary>
-    /// HashSet değer tutan store yapısı. 
+    /// HashSet value holding store structure.
     /// </summary>
-    /// <param name="masterKey">Bu dictionary hangi key altında saklanacak</param>
-    /// <param name="connectionName">Config'de tanımlı bağlantı ismi</param>
-    /// <param name="defaultExpire">Varsayılan expire süresi.</param>
-    /// <param name="autoPing">Her işlemde otomatik olarak Ping yapılsın mı?</param>
-    /// <param name="namespaceSeperator">Namespace'leri ayırmak için kullanılan ayraç. Varsayılan olarak ":"dir. </param>
-    /// <param name="overrideRootNamespace">Bağlantıya tanımlı root alan adını değiştirmek için kullanılır.</param>
-    /// <param name="serializer">Varsayılan serializer yerine başka bir serializer kullanmak istiyorsanız bunu setleyin.</param>
-    /// <param name="profiler">Özel olarak sadece bu data store'un metodlarını profile etmek için kullanılır. 
-    /// Setlense de setlenmese de <see cref="DataStoreManager"/>'a kayıtlı global profiler kullanılır.</param>
+    /// <param name="masterKey">Under which key this dictionary will be stored</param>
+    /// <param name="connectionName">Connection name defined in the config</param>
+    /// <param name="defaultExpire">Default expire time.</param>
+    /// <param name="autoPing">Should Ping be automatically performed on each operation?</param>
+    /// <param name="namespaceSeperator">Separator used to separate namespaces. Default is ":".</param>
+    /// <param name="overrideRootNamespace">Used to change the root namespace defined in the connection.</param>
+    /// <param name="serializer">Set this if you want to use a different serializer instead of the default serializer.</param>
+    /// <param name="profiler">Used to profile only the methods of this data store. The global profiler registered in <see cref="DataStoreManager"/> is used whether it is set or not.</param>
     public HashSetStore(string masterKey, string? connectionName = null, TimeSpan? defaultExpire = null, bool autoPing = false,
         string? namespaceSeperator = null, string? overrideRootNamespace = null, IDataStoreSerializer? serializer = null, IDataStoreCompressor? compressor = null,
         IDataStoreProfiler? profiler = null,
         int? compressBiggerThan = null) :
-        base(connectionName, defaultExpire, autoPing, namespaceSeperator, overrideRootNamespace, serializer, compressor,profiler, compressBiggerThan)
+        base(connectionName, defaultExpire, autoPing, namespaceSeperator, overrideRootNamespace, serializer, compressor, profiler, compressBiggerThan)
     {
         _hashSetStoreProvider = Provider as IHashSetStoreProvider
             ?? throw new InvalidOperationException($"The provider with connection '{connectionName}' doesn't support HashSet operations. " +
@@ -37,7 +36,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
 
         MasterKey = JoinWithRootNamespace(string.Format("{0}<{1}>",
             masterKey,
-            _valueName));//tip ismini eklememiz şart. Çünkü aynı masterKey'de farklı tipte olan listeler deserialize olamaz.
+            _valueName));//It is mandatory to add the type name. Because lists with different types cannot be deserialized in the same masterKey.
     }
 
     internal override string TypeName
@@ -46,24 +45,24 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     }
 
     /// <summary>
-    /// Store yapısının tutulduğu tam yol.
+    /// The full path where the store is held.
     /// </summary>
     public readonly string MasterKey;
 
     /// <summary>
-    /// Bu store mevcut mu?
+    /// Is this store exists?
     /// </summary>
     /// <returns></returns>
     public async Task<bool> IsExistsAsync()
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await _hashSetStoreProvider.IsExistsAsync(MasterKey);
         }
     }
 
     /// <summary>
-    /// Bu store mevcut mu?
+    /// Is this store exists?
     /// </summary>
     /// <returns></returns>
     public bool IsExists()
@@ -75,7 +74,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     }
 
     /// <summary>
-    /// Store'un <see cref="DataStoreBase.DefaultExpire"/> özelliği setli ise expire süresini bu süreye sıfırlar.
+    /// If the <see cref="DataStoreBase.DefaultExpire"/> property of the store is set, it resets the expire time to this value.
     /// </summary>
     /// <returns></returns>
     public async Task<bool> PingAsync()
@@ -84,7 +83,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     }
 
     /// <summary>
-    /// Store'un <see cref="DataStoreBase.DefaultExpire"/> özelliği setli ise expire süresini bu süreye sıfırlar.
+    /// If the <see cref="DataStoreBase.DefaultExpire"/> property of the store is set, it resets the expire time to this value.
     /// </summary>
     /// <returns></returns>
     public bool Ping()
@@ -96,7 +95,17 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     {
         var result = func();
         if (AutoPing)
-            Task.Run(() => Ping());
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await PingAsync();
+                }
+                catch (Exception e)
+                {
+                    //intentionally supressed
+                }
+            });
         return result;
     }
 
@@ -107,7 +116,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<long> AddAsync(params TValue?[] values)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () => await _hashSetStoreProvider.AddAsync(MasterKey, AsValues(values)));
         }
@@ -132,7 +141,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<long> CountAsync()
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () => await _hashSetStoreProvider.CountAsync(MasterKey));
         }
@@ -151,46 +160,46 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     }
 
     /// <summary>
-    /// Verilen değerlerle farkı mevcut elemanlara setler.
+    /// Sets the difference with the existing elements using the given values.
     /// </summary>
-    /// <param name="values"></param>
-    /// <returns></returns>
+    /// <param name="values">The values to set the difference with.</param>
+    /// <returns>The number of elements in the resulting set.</returns>
     public async Task<long> DifferenceWithAsync(params TValue?[] values)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () =>
-                                       {
-                                           //todo: lock
-                                           var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
+            {
+                //todo: lock
+                var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
 
-                                           await _hashSetStoreProvider.AddAsync(tempKey, AsValues(values));
-                                           var result = await DifferenceToNewSetAsync(MasterKey, tempKey);
-                                           await Provider.RemoveAsync(tempKey);
-                                           return result;
-                                       });
+                await _hashSetStoreProvider.AddAsync(tempKey, AsValues(values));
+                var result = await DifferenceToNewSetAsync(MasterKey, tempKey);
+                await Provider.RemoveAsync(tempKey);
+                return result;
+            });
         }
     }
 
     /// <summary>
-    /// Verilen değerlerle farkı mevcut elemanlara setler.
+    /// Sets the difference with the existing elements using the given values.
     /// </summary>
-    /// <param name="values"></param>
-    /// <returns></returns>
+    /// <param name="values">The values to set the difference with.</param>
+    /// <returns>The number of elements in the resulting set.</returns>
     public long DifferenceWith(params TValue?[] values)
     {
         using (new ProfileScope(this, MasterKey))
         {
             return CheckAutoPing(() =>
-                          {
-                              //todo: lock
-                              var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
+            {
+                //todo: lock
+                var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
 
-                              _hashSetStoreProvider.Add(tempKey, AsValues(values));
-                              var result = DifferenceToNewSet(MasterKey, tempKey);
-                              Provider.Remove(tempKey);
-                              return result;
-                          });
+                _hashSetStoreProvider.Add(tempKey, AsValues(values));
+                var result = DifferenceToNewSet(MasterKey, tempKey);
+                Provider.Remove(tempKey);
+                return result;
+            });
         }
     }
 
@@ -201,7 +210,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<long> SymmetricDifferenceWithAsync(params TValue?[] values)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () =>
                           {
@@ -257,7 +266,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<HashSet<TValue?>> DifferenceToHashSetAsync(params string[] compareHashSetKeys)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () => HashSetResult<TValue>(await _hashSetStoreProvider.DifferenceAsync(MasterKey, compareHashSetKeys)));
         }
@@ -277,25 +286,25 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     }
 
     /// <summary>
-    /// Farkı alır ve <paramref name="newHashSetKey"/> ile belirtilen hedefe yeni küme olarak oluşturur.
+    /// Takes the difference and creates a new set as specified by <paramref name="newHashSetKey"/>.
     /// </summary>
-    /// <param name="newHashSetKey"></param>
-    /// <param name="compareHashSetKeys"></param>
-    /// <returns>Fark eleman sayısı</returns>
+    /// <param name="newHashSetKey">The key of the new set to be created.</param>
+    /// <param name="compareHashSetKeys">The keys of the sets to compare.</param>
+    /// <returns>The number of elements in the difference.</returns>
     public async Task<long> DifferenceToNewSetAsync(string newHashSetKey, params string[] compareHashSetKeys)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () => await _hashSetStoreProvider.DifferenceToNewSetAsync(MasterKey, newHashSetKey, compareHashSetKeys));
         }
     }
 
     /// <summary>
-    /// Farkı alır ve <paramref name="newHashSetKey"/> ile belirtilen hedefe yeni küme olarak oluşturur.
+    /// Takes the difference and creates a new set as specified by <paramref name="newHashSetKey"/>.
     /// </summary>
-    /// <param name="newHashSetKey"></param>
-    /// <param name="compareHashSetKeys"></param>
-    /// <returns>Fark eleman sayısı</returns>
+    /// <param name="newHashSetKey">The key of the new set to be created.</param>
+    /// <param name="compareHashSetKeys">The keys of the sets to compare.</param>
+    /// <returns>The number of elements in the difference.</returns>
     public long DifferenceToNewSet(string newHashSetKey, params string[] compareHashSetKeys)
     {
         using (new ProfileScope(this, MasterKey))
@@ -311,7 +320,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<long> IntersectWithAsync(params TValue?[] values)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () =>
                                        {
@@ -342,7 +351,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
                               var result = IntersectToNewSet(MasterKey, MasterKey, tempKey);
                               Provider.Remove(tempKey);
                               return result;
-                          });                
+                          });
         }
     }
 
@@ -353,7 +362,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<HashSet<TValue?>> IntersectToHashSetAsync(params string[] compareHashSetKeys)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () => HashSetResult<TValue?>(await _hashSetStoreProvider.IntersectionAsync(MasterKey, compareHashSetKeys)));
         }
@@ -380,7 +389,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<long> IntersectToNewSetAsync(string newHashSetKey, params string[] compareHashSetKeys)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () => await _hashSetStoreProvider.IntersectionToNewSetAsync(MasterKey, newHashSetKey, compareHashSetKeys));
         }
@@ -407,11 +416,11 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<HashSet<TValue?>> UnionToHashSetAsync(params string[] hashSetKeys)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () =>
                                        {
-                                           var keys = new List<string> {MasterKey};
+                                           var keys = new List<string> { MasterKey };
                                            keys.AddRange(hashSetKeys);
                                            return HashSetResult<TValue?>(await _hashSetStoreProvider.UnionAsync(keys.ToArray()));
                                        });
@@ -429,7 +438,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
         {
             return CheckAutoPing(() =>
                                  {
-                                     var keys = new List<string> {MasterKey};
+                                     var keys = new List<string> { MasterKey };
                                      keys.AddRange(hashSetKeys);
                                      return HashSetResult<TValue?>(_hashSetStoreProvider.Union(keys.ToArray()));
                                  });
@@ -444,11 +453,11 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<long> UnionToNewSetAsync(string newHashSetKey, params string[] hashSetKeys)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () =>
                                        {
-                                           var keys = new List<string> {MasterKey};
+                                           var keys = new List<string> { MasterKey };
                                            keys.AddRange(hashSetKeys);
                                            return await _hashSetStoreProvider.UnionToNewSetAsync(newHashSetKey, keys.ToArray());
                                        });
@@ -467,7 +476,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
         {
             return CheckAutoPing(() =>
                                  {
-                                     var keys = new List<string> {MasterKey};
+                                     var keys = new List<string> { MasterKey };
                                      keys.AddRange(hashSetKeys);
                                      return _hashSetStoreProvider.UnionToNewSet(newHashSetKey, keys.ToArray());
                                  });
@@ -481,7 +490,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<bool> ContainsAsync(params TValue?[] values)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () =>
                                        {
@@ -511,7 +520,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<bool> IsSubsetOfAsync(string otherHashSetKey)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () =>
                                        {
@@ -557,7 +566,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<bool> IsSupersetOfAsync(string otherHashSetKey)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () =>
                                        {
@@ -603,7 +612,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<bool> OverlapsAsync(string otherHashSetKey)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () =>
                                        {
@@ -644,7 +653,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<HashSet<TValue?>> GetHashSetAsync()
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () => HashSetResult<TValue?>(await _hashSetStoreProvider.GetHashSetAsync(MasterKey)));
         }
@@ -670,7 +679,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<bool> MoveValueAsync(string destinationHashSetKey, TValue? value)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () => await _hashSetStoreProvider.MoveValueAsync(MasterKey, destinationHashSetKey, AsValue(value)));
         }
@@ -697,7 +706,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<long> RemoveAsync(params TValue?[] values)
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await CheckAutoPing(async () => await _hashSetStoreProvider.RemoveAsync(MasterKey, AsValues(values)));
         }
@@ -722,7 +731,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     /// <returns></returns>
     public async Task<bool> ClearAsync()
     {
-        using (new ProfileScope(this,MasterKey))
+        using (new ProfileScope(this, MasterKey))
         {
             return await Provider.RemoveAsync(MasterKey);
         }
@@ -741,38 +750,36 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     }
 
     /// <summary>
-    /// Verilen key'e göre kilit oluşturur.
+    /// Creates a lock based on the given key.
     /// </summary>
-    /// <param name="key">Hangi key kilitlenecek</param>
+    /// <param name="key">Which key to lock</param>
     /// <param name="waitTimeout"></param>
-    /// <param name="lockerExpire"></param>
     /// <param name="action"></param>
-    /// <param name="skipWhenTimeout">Timeout olduğunda çalıştırılacak olan aksiyon geçilsin mi?</param>
-    /// <param name="throwWhenTimeout">Timeout olduğunda <see cref="TimeoutException"/> fırlatılsın mı?</param>
-    public void Lock(string key, TimeSpan waitTimeout, TimeSpan lockerExpire, Action action, bool skipWhenTimeout = true, bool throwWhenTimeout = false)
+    /// <param name="skipWhenTimeout">Should the action be skipped when a timeout occurs?</param>
+    /// <param name="throwWhenTimeout">Should a <see cref="TimeoutException"/> be thrown when a timeout occurs?</param>
+    public void Lock(string key, TimeSpan waitTimeout, Action action, bool skipWhenTimeout = true, bool throwWhenTimeout = false, TimeSpan? slidingExpire = null)
     {
         var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
         using (new ProfileScope(this, lockKey))
         {
-            Provider.Lock(lockKey, waitTimeout, lockerExpire, action, skipWhenTimeout, throwWhenTimeout);
+            Provider.Lock(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
         }
     }
 
     /// <summary>
-    /// Verilen key'e göre kilit oluşturur.
+    /// Creates a lock based on the given key.
     /// </summary>
-    /// <param name="key">Hangi key kilitlenecek</param>
+    /// <param name="key">Which key to lock</param>
     /// <param name="waitTimeout"></param>
-    /// <param name="lockerExpire"></param>
     /// <param name="action"></param>
-    /// <param name="skipWhenTimeout">Timeout olduğunda çalıştırılacak olan aksiyon geçilsin mi?</param>
-    /// <param name="throwWhenTimeout">Timeout olduğunda <see cref="TimeoutException"/> fırlatılsın mı?</param>
-    public async Task LockAsync(string key, TimeSpan waitTimeout, TimeSpan lockerExpire, Func<Task> action, bool skipWhenTimeout = true, bool throwWhenTimeout = false)
+    /// <param name="skipWhenTimeout">Should the action be skipped when a timeout occurs?</param>
+    /// <param name="throwWhenTimeout">Should a <see cref="TimeoutException"/> be thrown when a timeout occurs?</param>
+    public async Task LockAsync(string key, TimeSpan waitTimeout, Func<Task> action, bool skipWhenTimeout = true, bool throwWhenTimeout = false, TimeSpan? slidingExpire = null)
     {
         var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
         using (new ProfileScope(this, lockKey))
         {
-            await Provider.LockAsync(lockKey, waitTimeout, lockerExpire, action, skipWhenTimeout, throwWhenTimeout);
+            await Provider.LockAsync(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
         }
     }
 

@@ -1,9 +1,9 @@
 ﻿namespace Nuve.DataStore;
 
 /// <summary>
-/// Provider'a setlenen ara profiler.
-/// Buradaki tüm metodlar her bir provider metodunda çağrılır.
-/// Bu sınıf mevcut scope'un contextini kullanarak global ve local profilerları tetikler.
+/// Intermediate profiler set for the provider.
+/// All methods here are called in each provider method.
+/// This class triggers global and local profilers using the current scope's context.
 /// </summary>
 internal class InternalProfilerProxy : IDataStoreProfiler
 {
