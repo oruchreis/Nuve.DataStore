@@ -13,8 +13,7 @@ namespace Nuve.DataStore.Test;
 [TestClass]
 public class RedisStoreProviderTests
 {
-    [TestInitialize]
-    public void Setup()
+    static RedisStoreProviderTests()
     {
         DataStoreManager.DefaultSerializer = new JsonNetDataStoreSerializer();
         DataStoreManager.RegisterProvider("Redis", typeof(RedisStoreProvider));
@@ -22,7 +21,7 @@ public class RedisStoreProviderTests
         DataStoreManager.CreateConnection(
             connectionName: "redis",
             providerName: "Redis",
-            connectionString: "127.0.0.1:6379",
+            connectionString: "localhost:6379",
             rootNamespace: "test",
             isDefault: true);
     }
