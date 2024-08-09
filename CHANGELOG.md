@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v1.2.10] - 2024-08-09
+
+### Added
+- Count method
+
 ## [v1.2.9] - 2024-05-16
 
 ### Added

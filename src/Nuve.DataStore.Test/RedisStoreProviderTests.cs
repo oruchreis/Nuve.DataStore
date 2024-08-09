@@ -22,7 +22,7 @@ public class RedisStoreProviderTests
         DataStoreManager.CreateConnection(
             connectionName: "redis",
             providerName: "Redis",
-            connectionString: "localhost:6379",
+            connectionString: "127.0.0.1:6379",
             rootNamespace: "test",
             isDefault: true);
     }
@@ -52,5 +52,17 @@ public class RedisStoreProviderTests
         }, throwWhenTimeout: true, slidingExpire: slidingExpire);
 
         Assert.IsFalse(((IKeyValueStoreProvider)provider).Contains("test-lock"));
+    }
+
+    [TestMethod]
+    public void Count()
+    {
+        DataStoreManager.GetProvider("redis", out var provider, out var rootNameSpace, out int? defaultCompressBiggerThan);
+        ((IKeyValueStoreProvider)provider).Set("Test:1", [], true);
+        ((IKeyValueStoreProvider)provider).Set("Test:2", [], true);
+        ((IKeyValueStoreProvider)provider).Set("Test:3", [], true);
+        ((IKeyValueStoreProvider)provider).Set("Test:4", [], true);
+        Assert.AreEqual(4, ((IKeyValueStoreProvider)provider).Count("Test:*"));
+
     }
 }

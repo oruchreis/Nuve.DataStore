@@ -35,5 +35,7 @@ namespace Nuve.DataStore
         bool Rename(string oldKey, string newKey);
         long Increment(string key, long amount);
         long Decrement(string key, long amount);
+        long Count(string pattern);
+        Task<long> CountAsync(string pattern);
     }
 }

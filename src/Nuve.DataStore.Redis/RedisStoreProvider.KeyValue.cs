@@ -197,4 +197,21 @@ public partial class RedisStoreProvider : IKeyValueStoreProvider
     {
         return (await RedisCallAsync(async Db => { return await Db.StringDecrementAsync(key, amount); }))!;
     }
+
+    long IKeyValueStoreProvider.Count(string pattern)
+    {
+        return RedisCall(Db =>
+        {
+            var result = Db.ScriptEvaluateReadOnly(@"return #redis.call('keys', KEYS[1])", keys: [pattern]);
+            return result.IsNull ? 0 : (int)result;
+        });
+    }
+    async Task<long> IKeyValueStoreProvider.CountAsync(string pattern)
+    {
+        return await RedisCallAsync(async Db =>
+        {
+            var result = await Db.ScriptEvaluateReadOnlyAsync(@"return #redis.call('keys', KEYS[1])", keys: [pattern]);
+            return result.IsNull ? 0 : (int)result;
+        });
+    }
 }

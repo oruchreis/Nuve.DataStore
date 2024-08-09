@@ -664,4 +664,20 @@ public class KeyValueStore : DataStoreBase
             await Provider.LockAsync(JoinWithRootNamespace(lockerKey), waitTimeout, actionAsync, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
         }
     }
+
+    public long Count(string pattern)
+    {
+        using(new ProfileScope(this, pattern))
+        {
+            return _keyValueStoreProvider.Count(pattern);
+        }
+    }
+
+    public async Task<long> CountAsync(string pattern)
+    {
+        using (new ProfileScope(this, pattern))
+        {
+            return await _keyValueStoreProvider.CountAsync(pattern);
+        }
+    }
 }
