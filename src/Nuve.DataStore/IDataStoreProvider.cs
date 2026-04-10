@@ -19,6 +19,8 @@ namespace Nuve.DataStore
         bool Remove(string key);        
         Task<bool> RemoveAsync(string key);        
         void Lock(string lockKey, TimeSpan waitTimeout, Action action, TimeSpan slidingExpire, bool skipWhenTimeout = true, bool throwWhenTimeout = false);
+        Lock? AcquireLock(string lockKey, TimeSpan waitTimeout, TimeSpan slidingExpire, bool throwWhenTimeout);
         Task LockAsync(string lockKey, TimeSpan waitTimeout, Func<Task> action, TimeSpan slidingExpire, bool skipWhenTimeout = true, bool throwWhenTimeout = false);
+        Task<Lock?> AcquireLockAsync(string lockKey, TimeSpan waitTimeout, TimeSpan slidingExpire, bool throwWhenTimeout);
     }
 }

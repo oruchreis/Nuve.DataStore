@@ -1,7 +1,10 @@
-﻿using System.Collections.Concurrent;
+﻿using StackExchange.Redis;
+using System.Collections.Concurrent;
+using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
-using StackExchange.Redis;
 
+[assembly: InternalsVisibleTo("Nuve.DataStore.Test")]
 namespace Nuve.DataStore.Redis;
 
 public partial class RedisStoreProvider : IDataStoreProvider
@@ -11,7 +14,7 @@ public partial class RedisStoreProvider : IDataStoreProvider
     private string? _connectionString;
     private ConcurrentQueue<ConnectionMultiplexer>? _connectionPool;
 
-    protected T RedisCall<T>(Func<IDatabase, T> callFunction, int retryCount = 0, List<Exception>? exceptions = null)
+    internal T RedisCall<T>(Func<IDatabase, T> callFunction, int retryCount = 0, List<Exception>? exceptions = null)
     {
         if (_connectionString == null || _connectionPool == null)
             throw new InvalidOperationException("The provider hasn't initialized yet.");
@@ -53,7 +56,7 @@ public partial class RedisStoreProvider : IDataStoreProvider
         }
     }
 
-    protected void RedisCall(Action<IDatabase> callFunction, int retryCount = 0, List<Exception>? exceptions = null)
+    internal void RedisCall(Action<IDatabase> callFunction, int retryCount = 0, List<Exception>? exceptions = null)
     {
         if (_connectionString == null || _connectionPool == null)
             throw new InvalidOperationException("The provider hasn't initialized yet.");
@@ -95,7 +98,7 @@ public partial class RedisStoreProvider : IDataStoreProvider
         }
     }
 
-    protected async Task<T> RedisCallAsync<T>(Func<IDatabase, Task<T>> callFunctionAsync, int retryCount = 0, List<Exception>? exceptions = null)
+    internal async Task<T> RedisCallAsync<T>(Func<IDatabase, Task<T>> callFunctionAsync, int retryCount = 0, List<Exception>? exceptions = null)
     {
         if (_connectionString == null || _connectionPool == null)
             throw new InvalidOperationException("The provider hasn't initialized yet.");
@@ -137,7 +140,7 @@ public partial class RedisStoreProvider : IDataStoreProvider
         }
     }
 
-    protected async Task RedisCallAsync(Func<IDatabase, Task> callFunctionAsync, int retryCount = 0, List<Exception>? exceptions = null)
+    internal async Task RedisCallAsync(Func<IDatabase, Task> callFunctionAsync, int retryCount = 0, List<Exception>? exceptions = null)
     {
         if (_connectionString == null || _connectionPool == null)
             throw new InvalidOperationException("The provider hasn't initialized yet.");
@@ -274,60 +277,87 @@ public partial class RedisStoreProvider : IDataStoreProvider
 
     void IDataStoreProvider.Lock(string lockKey, TimeSpan waitTimeout, Action action, TimeSpan slidingExpire, bool skipWhenTimeout, bool throwWhenTimeout)
     {
-        try
+        if (TryAcquireLock(lockKey, waitTimeout, slidingExpire, throwWhenTimeout, out var lockItem))
         {
-            RedisCall(Db =>
+            using (lockItem)
             {
-                using (Db.AcquireLock(lockKey, waitTimeout, slidingExpire))
-                {
-                    action();
-                }
-            });
+                action();
+            }
         }
-        catch (TimeoutException e)
+        else
         {
             if (!skipWhenTimeout)
                 action();
-            if (throwWhenTimeout)
-                ExceptionDispatchInfo.Capture(e).Throw();
         }
     }
 
-    internal void Lock(string lockKey, TimeSpan waitTimeout, Action<IDisposable> action, TimeSpan slidingExpire, bool throwWhenTimeout)
+    Lock? IDataStoreProvider.AcquireLock(string lockKey, TimeSpan waitTimeout, TimeSpan slidingExpire, bool throwWhenTimeout)
     {
-        try
-        {
-            RedisCall(Db =>
-            {
-                using var lockItem = Db.AcquireLock(lockKey, waitTimeout, slidingExpire);
-                action(lockItem);
-            });
-        }
-        catch (TimeoutException e)
-        {
-            if (throwWhenTimeout)
-                ExceptionDispatchInfo.Capture(e).Throw();
-        }
+        TryAcquireLock(lockKey, waitTimeout, slidingExpire, throwWhenTimeout, out var lockItem);
+
+        return lockItem;
     }
 
     async Task IDataStoreProvider.LockAsync(string lockKey, TimeSpan waitTimeout, Func<Task> action, TimeSpan slidingExpire, bool skipWhenTimeout, bool throwWhenTimeout)
     {
-        try
+        var lockItem = await TryAcquireLockAsync(lockKey, waitTimeout, slidingExpire, throwWhenTimeout);
+        if (lockItem != null)
         {
-            await RedisCallAsync(async Db =>
+            using (lockItem)
             {
-                using (await Db.AcquireLockAsync(lockKey, waitTimeout, slidingExpire))
-                {
-                    await action();
-                }
-            });
+                await action();
+            }
         }
-        catch (TimeoutException e)
+        else
         {
             if (!skipWhenTimeout)
                 await action();
-            if (throwWhenTimeout)
-                ExceptionDispatchInfo.Capture(e).Throw();
         }
     }
+
+    async Task<Lock?> IDataStoreProvider.AcquireLockAsync(string lockKey, TimeSpan waitTimeout, TimeSpan slidingExpire, bool throwWhenTimeout)
+    {
+        return await TryAcquireLockAsync(lockKey, waitTimeout, slidingExpire, throwWhenTimeout);
+    }
+
+    private bool TryAcquireLock(string key, TimeSpan timeout, TimeSpan slidingExpire, bool throwWhenTimeout, out RedisLock? locker)
+    {
+        locker = new RedisLock(this, key, timeout, slidingExpire, throwWhenTimeout);
+        try
+        {
+            if (!locker.TryAcquireLock())
+            {
+                locker.Dispose();
+                locker = null;
+                return false;
+            }
+        }
+        catch (Exception)
+        {
+            locker?.Dispose();
+            locker = null;
+            return false;
+        }
+        return true;
+    }
+
+    private async Task<RedisLock?> TryAcquireLockAsync(string key, TimeSpan timeout, TimeSpan slidingExpire, bool throwWhenTimeout)
+    {
+        var locker = new RedisLock(this, key, timeout, slidingExpire, throwWhenTimeout);
+        try
+        {
+            if (!await locker.TryAcquireLockAsync())
+            {
+                locker.Dispose();
+                locker = null;
+            }
+        }
+        catch (Exception)
+        {
+            locker?.Dispose();
+            locker = null;
+        }
+        return locker;
+    }
+
 }

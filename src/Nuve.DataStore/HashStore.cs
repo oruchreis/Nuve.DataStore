@@ -384,6 +384,28 @@ public sealed class HashStore : DataStoreBase
     }
 
     /// <summary>
+    /// Attempts to acquire a distributed lock for the specified key within the given timeout period.
+    /// </summary>
+    /// <remarks>The lock will automatically expire after the specified sliding expiration interval unless
+    /// renewed. This method is typically used to coordinate access to shared resources in distributed
+    /// environments.</remarks>
+    /// <param name="key">The unique identifier for the resource to lock. Cannot be null or empty.</param>
+    /// <param name="waitTimeout">The maximum duration to wait for the lock to become available before timing out.</param>
+    /// <param name="slidingExpire">An optional sliding expiration interval for the lock. If not specified, a default of 30 seconds is used.</param>
+    /// <param name="throwWhenTimeout">true to throw an exception if the lock cannot be acquired within the timeout period; otherwise, false to return
+    /// null.</param>
+    /// <returns>A Lock object representing the acquired lock if successful; otherwise, null if the lock could not be obtained
+    /// within the specified timeout and throwWhenTimeout is false.</returns>
+    public Lock? AcquireLock(string key, TimeSpan waitTimeout, TimeSpan? slidingExpire = null, bool throwWhenTimeout = false)
+    {
+        var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
+        using (new ProfileScope(this, lockKey))
+        {
+            return Provider.AcquireLock(lockKey, waitTimeout, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout);
+        }
+    }
+
+    /// <summary>
     /// Creates a lock for the given key.
     /// </summary>
     /// <param name="key">The key to be locked.</param>
@@ -397,6 +419,28 @@ public sealed class HashStore : DataStoreBase
         using (new ProfileScope(this, lockKey))
         {
             await Provider.LockAsync(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
+        }
+    }
+
+    /// <summary>
+    /// Attempts to acquire a distributed lock for the specified key within the given timeout period, optionally using a
+    /// sliding expiration.
+    /// </summary>
+    /// <remarks>The acquired lock will automatically expire after the specified sliding expiration unless
+    /// renewed. This method is asynchronous and should be awaited.</remarks>
+    /// <param name="key">The unique identifier for the resource to lock.</param>
+    /// <param name="waitTimeout">The maximum duration to wait for the lock to become available before timing out.</param>
+    /// <param name="slidingExpire">The optional sliding expiration interval for the lock. If not specified, a default value is used.</param>
+    /// <param name="throwWhenTimeout">true to throw an exception if the lock cannot be acquired within the timeout period; otherwise, false to return
+    /// null.</param>
+    /// <returns>A Lock instance if the lock is successfully acquired; otherwise, null if the timeout is reached and
+    /// throwWhenTimeout is false.</returns>
+    public async Task<Lock?> AcquireLockAsync(string key, TimeSpan waitTimeout, TimeSpan? slidingExpire = null, bool throwWhenTimeout = false)
+    {
+        var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
+        using (new ProfileScope(this, lockKey))
+        {
+            return await Provider.AcquireLockAsync(lockKey, waitTimeout, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout);
         }
     }
 

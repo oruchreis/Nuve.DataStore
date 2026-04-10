@@ -648,6 +648,25 @@ public class KeyValueStore : DataStoreBase
     }
 
     /// <summary>
+    /// Attempts to acquire a distributed lock for the specified key within the given timeout period.
+    /// </summary>
+    /// <remarks>If the lock cannot be acquired within the specified wait timeout, the method returns null or
+    /// throws an exception based on the value of throwWhenTimeout. The slidingExpire parameter determines how long the
+    /// lock is held before it expires, and is refreshed on each access if specified.</remarks>
+    /// <param name="lockerKey">The unique key that identifies the lock to acquire. Cannot be null or empty.</param>
+    /// <param name="waitTimeout">The maximum duration to wait for the lock to become available before timing out.</param>
+    /// <param name="slidingExpire">An optional sliding expiration interval for the lock. If not specified, a default value is used.</param>
+    /// <param name="throwWhenTimeout">true to throw an exception if the lock cannot be acquired within the timeout period; otherwise, false to return
+    /// null.</param>
+    /// <returns>The result contains a Lock object if the lock is
+    /// acquired; otherwise, null.</returns>
+    /// <returns></returns>
+    public Lock? AcquireLock(string lockerKey, TimeSpan waitTimeout, TimeSpan? slidingExpire = null, bool throwWhenTimeout = false)
+    {
+        return Provider.AcquireLock(lockerKey, waitTimeout, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout);
+    }
+
+    /// <summary>
     /// If the key is not locked, locks the key for the duration of <paramref name="lockerExpire"/> or waits for the lock to be released for a maximum of <paramref name="waitTimeout"/>.
     /// Continues without performing the operation at the end of the wait period.
     /// </summary>
@@ -665,6 +684,29 @@ public class KeyValueStore : DataStoreBase
         }
     }
 
+    /// <summary>
+    /// Attempts to acquire a distributed lock for the specified key within the given timeout period.
+    /// </summary>
+    /// <remarks>If the lock cannot be acquired within the specified wait timeout, the method returns null or
+    /// throws an exception based on the value of throwWhenTimeout. The slidingExpire parameter determines how long the
+    /// lock is held before it expires, and is refreshed on each access if specified.</remarks>
+    /// <param name="lockerKey">The unique key that identifies the lock to acquire. Cannot be null or empty.</param>
+    /// <param name="waitTimeout">The maximum duration to wait for the lock to become available before timing out.</param>
+    /// <param name="slidingExpire">An optional sliding expiration interval for the lock. If not specified, a default value is used.</param>
+    /// <param name="throwWhenTimeout">true to throw an exception if the lock cannot be acquired within the timeout period; otherwise, false to return
+    /// null.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains a Lock object if the lock is
+    /// acquired; otherwise, null.</returns>
+    public async Task<Lock?> AcquireLockAsync(string lockerKey, TimeSpan waitTimeout, TimeSpan? slidingExpire = null, bool throwWhenTimeout = false)
+    {
+        return await Provider.AcquireLockAsync(JoinWithRootNamespace(lockerKey), waitTimeout, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout);
+    }
+
+    /// <summary>
+    /// Returns the number of key-value pairs that match the specified pattern.
+    /// </summary>
+    /// <param name="pattern">A string pattern used to match keys. The pattern determines which key-value pairs are counted.</param>
+    /// <returns>The total number of key-value pairs that match the given pattern.</returns>
     public long Count(string pattern)
     {
         using(new ProfileScope(this, pattern))
@@ -673,6 +715,13 @@ public class KeyValueStore : DataStoreBase
         }
     }
 
+    /// <summary>
+    /// Asynchronously counts the number of keys in the store that match the specified pattern.
+    /// </summary>
+    /// <param name="pattern">A string pattern used to match keys. The pattern may include wildcards or other matching rules supported by the
+    /// underlying store.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains the number of keys that match the
+    /// specified pattern.</returns>
     public async Task<long> CountAsync(string pattern)
     {
         using (new ProfileScope(this, pattern))

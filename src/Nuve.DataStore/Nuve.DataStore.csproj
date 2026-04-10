@@ -1,24 +1,27 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <AssemblyTitle>Nuve.DataStore</AssemblyTitle>
-    <AssemblyName>Nuve.DataStore</AssemblyName>
-    <PackageId>Nuve.DataStore</PackageId>
-	  <Version>1.2.10</Version>
-    <AssemblyVersion>1.2.10</AssemblyVersion>
-    <FileVersion>1.2.10</FileVersion>
-    <PackageProjectUrl>https://github.com/oruchreis/Nuve.DataStore</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/oruchreis/Nuve.DataStore.git</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <Authors>oruchreis</Authors>
-    <Copyright>oruchreis</Copyright>
-    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <Title>DataStore</Title>
-    <Description>An abstract layer for key-value stores</Description>
-    <Summary>An abstract layer for key-value stores</Summary>
-    <PackageTags>key-value key value data store nuve redis</PackageTags>
-  </PropertyGroup>
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net48' ">
-    <Reference Include="System.Configuration" />    
-  </ItemGroup>
+	<PropertyGroup>
+		<AssemblyTitle>Nuve.DataStore</AssemblyTitle>
+		<AssemblyName>Nuve.DataStore</AssemblyName>
+		<PackageId>Nuve.DataStore</PackageId>
+		<Version>1.2.11</Version>
+		<AssemblyVersion>1.2.11</AssemblyVersion>
+		<FileVersion>1.2.11</FileVersion>
+		<PackageProjectUrl>https://github.com/oruchreis/Nuve.DataStore</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/oruchreis/Nuve.DataStore.git</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<Authors>oruchreis</Authors>
+		<Copyright>oruchreis</Copyright>
+		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+		<Title>DataStore</Title>
+		<Description>An abstract layer for key-value stores</Description>
+		<Summary>An abstract layer for key-value stores</Summary>
+		<PackageTags>key-value key value data store nuve redis</PackageTags>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+	<ItemGroup Condition=" '$(TargetFramework)' == 'net48' ">
+		<Reference Include="System.Configuration" />
+	</ItemGroup>
 </Project>
