@@ -538,6 +538,28 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     }
 
     /// <summary>
+    /// Attempts to acquire a distributed lock for the specified key within the given timeout period.
+    /// </summary>
+    /// <remarks>The lock is associated with the provided key and will automatically expire after the
+    /// specified sliding expiration interval unless renewed. If throwWhenTimeout is set to true and the lock cannot be
+    /// acquired within the waitTimeout, an exception will be thrown.</remarks>
+    /// <param name="key">The unique identifier for the resource to lock. This value is used to distinguish different locks.</param>
+    /// <param name="waitCancelToken">A token to monitor for cancellation requests while waiting for the lock.</param>
+    /// <param name="slidingExpire">An optional sliding expiration interval for the lock. If not specified, a default of 30 seconds is used.</param>
+    /// <param name="throwWhenTimeout">true to throw an exception if the lock cannot be acquired within the timeout period; otherwise, false to return
+    /// null.</param>
+    /// <returns>A Lock object representing the acquired lock if successful; otherwise, null if the lock could not be obtained
+    /// within the specified timeout and throwWhenTimeout is false.</returns>
+    public DataStoreLock? AcquireLock(string key, CancellationToken waitCancelToken, TimeSpan? slidingExpire = null, bool throwWhenTimeout = false)
+    {
+        var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
+        using (new ProfileScope(this, lockKey))
+        {
+            return Provider.AcquireLock(lockKey, waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout);
+        }
+    }
+
+    /// <summary>
     /// Creates a lock based on the given key.
     /// </summary>
     /// <param name="key">The key to lock.</param>
@@ -554,6 +576,30 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
             await Provider.LockAsync(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
         }
     }
+
+    /// <summary>
+    /// Asynchronously attempts to acquire a distributed lock for the specified key within the given timeout period.
+    /// </summary>
+    /// <remarks>This method is typically used to coordinate access to shared resources in distributed
+    /// systems. The lock is automatically released when disposed. If throwWhenTimeout is true and the lock cannot be
+    /// acquired within the waitTimeout, an exception is thrown.</remarks>
+    /// <param name="key">The unique identifier for the resource to lock. This value is used to distinguish different locks.</param>
+    /// <param name="waitCancelToken">A token to monitor for cancellation requests while waiting for the lock.</param>
+    /// <param name="slidingExpire">An optional sliding expiration interval for the lock. If not specified, a default value is used. The lock will
+    /// automatically expire if not renewed within this interval.</param>
+    /// <param name="throwWhenTimeout">true to throw an exception if the lock cannot be acquired within the specified timeout; otherwise, false to
+    /// return null.</param>
+    /// <returns>A Lock instance representing the acquired lock if successful; otherwise, null if the lock could not be obtained
+    /// within the timeout and throwWhenTimeout is false.</returns>
+    public async Task<DataStoreLock?> AcquireLockAsync(string key, CancellationToken waitCancelToken, TimeSpan? slidingExpire = null, bool throwWhenTimeout = false)
+    {
+        var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
+        using (new ProfileScope(this, lockKey))
+        {
+            return await Provider.AcquireLockAsync(lockKey, waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout);
+        }
+    }
+
 
     #region Interfaces
     public IEnumerator<TValue?> GetEnumerator()

@@ -1,9 +1,36 @@
-﻿using System.Collections.Concurrent;
+﻿using StackExchange.Redis;
+using System.Collections.Concurrent;
+using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
-using StackExchange.Redis;
 
+[assembly: InternalsVisibleTo("Nuve.DataStore.Test")]
 namespace Nuve.DataStore.Redis;
 
+/// <summary>
+/// Provides a Redis-based implementation of the <see cref="IDataStoreProvider"/> interface,
+/// supporting key-value, hash, set, sorted set, and list operations with connection pooling,
+/// retry logic, and distributed locking capabilities.
+/// 
+/// <para>
+/// <b>Features:</b>
+/// <list type="bullet">
+///   <item>Manages Redis connections using a pool per connection string for efficient reuse.</item>
+///   <item>Implements synchronous and asynchronous Redis command execution with automatic retries on transient errors.</item>
+///   <item>Supports distributed locking mechanisms for concurrency control using <see cref="RedisDataStoreLock"/>.</item>
+///   <item>Provides methods for key type detection, expiration management, and key removal.</item>
+///   <item>Integrates with <see cref="IDataStoreProfiler"/> for optional profiling support.</item>
+/// </list>
+/// </para>
+/// 
+/// <para>
+/// <b>Thread Safety:</b> This class is thread-safe and designed for concurrent use across multiple threads.
+/// </para>
+/// 
+/// <para>
+/// <b>Usage:</b> Call <see cref="Initialize"/> or <see cref="InitializeAsync"/> before using any data store operations.
+/// </para>
+/// </summary>
 public partial class RedisStoreProvider : IDataStoreProvider
 {
     private static readonly ConcurrentDictionary<string, ConcurrentQueue<ConnectionMultiplexer>> _connectionPools = new();
@@ -11,7 +38,7 @@ public partial class RedisStoreProvider : IDataStoreProvider
     private string? _connectionString;
     private ConcurrentQueue<ConnectionMultiplexer>? _connectionPool;
 
-    protected T RedisCall<T>(Func<IDatabase, T> callFunction, int retryCount = 0, List<Exception>? exceptions = null)
+    internal T RedisCall<T>(Func<IDatabase, T> callFunction, int retryCount = 0, List<Exception>? exceptions = null)
     {
         if (_connectionString == null || _connectionPool == null)
             throw new InvalidOperationException("The provider hasn't initialized yet.");
@@ -53,7 +80,7 @@ public partial class RedisStoreProvider : IDataStoreProvider
         }
     }
 
-    protected void RedisCall(Action<IDatabase> callFunction, int retryCount = 0, List<Exception>? exceptions = null)
+    internal void RedisCall(Action<IDatabase> callFunction, int retryCount = 0, List<Exception>? exceptions = null)
     {
         if (_connectionString == null || _connectionPool == null)
             throw new InvalidOperationException("The provider hasn't initialized yet.");
@@ -95,7 +122,7 @@ public partial class RedisStoreProvider : IDataStoreProvider
         }
     }
 
-    protected async Task<T> RedisCallAsync<T>(Func<IDatabase, Task<T>> callFunctionAsync, int retryCount = 0, List<Exception>? exceptions = null)
+    internal async Task<T> RedisCallAsync<T>(Func<IDatabase, Task<T>> callFunctionAsync, int retryCount = 0, List<Exception>? exceptions = null)
     {
         if (_connectionString == null || _connectionPool == null)
             throw new InvalidOperationException("The provider hasn't initialized yet.");
@@ -137,7 +164,7 @@ public partial class RedisStoreProvider : IDataStoreProvider
         }
     }
 
-    protected async Task RedisCallAsync(Func<IDatabase, Task> callFunctionAsync, int retryCount = 0, List<Exception>? exceptions = null)
+    internal async Task RedisCallAsync(Func<IDatabase, Task> callFunctionAsync, int retryCount = 0, List<Exception>? exceptions = null)
     {
         if (_connectionString == null || _connectionPool == null)
             throw new InvalidOperationException("The provider hasn't initialized yet.");
@@ -179,13 +206,24 @@ public partial class RedisStoreProvider : IDataStoreProvider
         }
     }
 
-    public virtual void Initialize(string connectionString, IDataStoreProfiler profiler)
+    /// <summary>
+    /// Initializes the Redis store provider with the specified connection string and optional profiler.
+    /// </summary>
+    /// <param name="connectionString">The connection string used to establish connections to the Redis server. Cannot be null.</param>
+    /// <param name="profiler">An optional profiler instance used to monitor data store operations, or null if profiling is not required.</param>
+    public virtual void Initialize(string connectionString, IDataStoreProfiler? profiler)
     {
         _connectionString = connectionString;
         _connectionPool = _connectionPools.GetOrAdd(connectionString, cs => new ConcurrentQueue<ConnectionMultiplexer>());
     }
 
-    public virtual Task InitializeAsync(string connectionString, IDataStoreProfiler profiler)
+    /// <summary>
+    /// Asynchronously initializes the data store provider using the specified connection string and optional profiler.
+    /// </summary>
+    /// <param name="connectionString">The connection string used to configure the data store provider. Cannot be null or empty.</param>
+    /// <param name="profiler">An optional profiler instance for monitoring data store operations; or null if profiling is not required.</param>
+    /// <returns>A completed task that represents the asynchronous initialization operation.</returns>
+    public virtual Task InitializeAsync(string connectionString, IDataStoreProfiler? profiler)
     {
         Initialize(connectionString, profiler);
 
@@ -274,60 +312,89 @@ public partial class RedisStoreProvider : IDataStoreProvider
 
     void IDataStoreProvider.Lock(string lockKey, TimeSpan waitTimeout, Action action, TimeSpan slidingExpire, bool skipWhenTimeout, bool throwWhenTimeout)
     {
-        try
+        using var cts = new CancellationTokenSource(waitTimeout);
+        if (TryAcquireLock(lockKey, slidingExpire, throwWhenTimeout, cts.Token, out var lockItem))
         {
-            RedisCall(Db =>
+            using (lockItem)
             {
-                using (Db.AcquireLock(lockKey, waitTimeout, slidingExpire))
-                {
-                    action();
-                }
-            });
+                action();
+            }
         }
-        catch (TimeoutException e)
+        else
         {
             if (!skipWhenTimeout)
                 action();
-            if (throwWhenTimeout)
-                ExceptionDispatchInfo.Capture(e).Throw();
         }
     }
 
-    internal void Lock(string lockKey, TimeSpan waitTimeout, Action<IDisposable> action, TimeSpan slidingExpire, bool throwWhenTimeout)
+    DataStoreLock? IDataStoreProvider.AcquireLock(string lockKey, CancellationToken waitCancelToken, TimeSpan slidingExpire, bool throwWhenTimeout)
     {
-        try
-        {
-            RedisCall(Db =>
-            {
-                using var lockItem = Db.AcquireLock(lockKey, waitTimeout, slidingExpire);
-                action(lockItem);
-            });
-        }
-        catch (TimeoutException e)
-        {
-            if (throwWhenTimeout)
-                ExceptionDispatchInfo.Capture(e).Throw();
-        }
+        TryAcquireLock(lockKey, slidingExpire, throwWhenTimeout, waitCancelToken, out var lockItem);
+
+        return lockItem;
     }
 
     async Task IDataStoreProvider.LockAsync(string lockKey, TimeSpan waitTimeout, Func<Task> action, TimeSpan slidingExpire, bool skipWhenTimeout, bool throwWhenTimeout)
     {
-        try
+        using var cts = new CancellationTokenSource(waitTimeout);
+        var lockItem = await TryAcquireLockAsync(lockKey, slidingExpire, throwWhenTimeout, cts.Token);
+        if (lockItem != null)
         {
-            await RedisCallAsync(async Db =>
+            using (lockItem)
             {
-                using (await Db.AcquireLockAsync(lockKey, waitTimeout, slidingExpire))
-                {
-                    await action();
-                }
-            });
+                await action();
+            }
         }
-        catch (TimeoutException e)
+        else
         {
             if (!skipWhenTimeout)
                 await action();
-            if (throwWhenTimeout)
-                ExceptionDispatchInfo.Capture(e).Throw();
         }
     }
+
+    async Task<DataStoreLock?> IDataStoreProvider.AcquireLockAsync(string lockKey, CancellationToken waitCancelToken, TimeSpan slidingExpire, bool throwWhenTimeout)
+    {
+        return await TryAcquireLockAsync(lockKey, slidingExpire, throwWhenTimeout, waitCancelToken);
+    }
+
+    private bool TryAcquireLock(string key, TimeSpan slidingExpire, bool throwWhenTimeout, CancellationToken waitCancelToken, out RedisDataStoreLock? locker)
+    {
+        locker = new RedisDataStoreLock(this, key, slidingExpire, throwWhenTimeout, waitCancelToken);
+        try
+        {
+            if (!locker.TryAcquireLock())
+            {
+                locker.Dispose();
+                locker = null;
+                return false;
+            }
+        }
+        catch (Exception)
+        {
+            locker?.Dispose();
+            locker = null;
+            return false;
+        }
+        return true;
+    }
+
+    private async Task<RedisDataStoreLock?> TryAcquireLockAsync(string key, TimeSpan slidingExpire, bool throwWhenTimeout, CancellationToken waitCancelToken)
+    {
+        var locker = new RedisDataStoreLock(this, key, slidingExpire, throwWhenTimeout, waitCancelToken);
+        try
+        {
+            if (!await locker.TryAcquireLockAsync())
+            {
+                locker.Dispose();
+                locker = null;
+            }
+        }
+        catch (Exception)
+        {
+            locker?.Dispose();
+            locker = null;
+        }
+        return locker;
+    }
+
 }
