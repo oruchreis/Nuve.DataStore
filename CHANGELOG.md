@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v1.2.13] - 2026-04-13
+
+### Added
+- Fencing Token support to distributed locks
+
 ## [v1.2.11] - 2026-04-10
 
 ### Added

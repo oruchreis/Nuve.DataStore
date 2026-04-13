@@ -13,6 +13,78 @@ public abstract class DataStoreLock : IDisposable
 #endif
 {
     /// <summary>
+    /// Gets the token that uniquely identifies the owner of the lock.
+    /// </summary>
+    /// <remarks>
+    /// This token is used internally by the lock provider to ensure that only the
+    /// lock owner can renew or release the lock.
+    /// 
+    /// The value is typically generated when the lock is acquired and remains constant
+    /// for the lifetime of the lock instance.
+    /// 
+    /// This token should be treated as an opaque value and must not be modified or reused
+    /// across different lock instances.
+    /// 
+    /// <para>
+    /// <b>Important:</b>
+    /// This token is intended for lock ownership validation (e.g., during renew or release operations)
+    /// and should not be used to prevent stale writes in distributed systems. For that purpose,
+    /// use <see cref="FencingToken"/>.
+    /// </para>
+    /// </remarks>
+    public virtual string? OwnerToken => null;
+
+    /// <summary>
+    /// Gets the fencing token associated with the current lock instance.
+    /// </summary>
+    /// <remarks>
+    /// A fencing token is a monotonically increasing value that is assigned when a lock is acquired.
+    /// It is used to prevent stale or out-of-order operations in distributed systems.
+    /// 
+    /// <para>
+    /// Each time a lock is successfully acquired, a new fencing token is generated,
+    /// and it is guaranteed to be greater than any previously issued token for the same lock key.
+    /// </para>
+    /// 
+    /// <para>
+    /// <b>Important usage pattern:</b>
+    /// The fencing token must be validated by the system that performs the protected operation
+    /// (e.g., a database, message processor, or external service).
+    /// </para>
+    /// 
+    /// <para>
+    /// Example:
+    /// <code>
+    /// UPDATE resource
+    /// SET value = @value,
+    ///     fencing_token = @incomingToken
+    /// WHERE id = @id
+    ///   AND fencing_token &lt; @incomingToken;
+    /// </code>
+    /// </para>
+    /// 
+    /// <para>
+    /// If the update affects zero rows, it indicates that a newer lock owner has already
+    /// performed an operation, and the current operation must be discarded.
+    /// </para>
+    /// 
+    /// <para>
+    /// <b>Why this is necessary:</b>
+    /// In distributed environments, a lock may expire or be lost (e.g., due to network issues),
+    /// and another process may acquire the same lock. The previous owner might still attempt
+    /// to perform operations after losing the lock. The fencing token prevents such stale
+    /// operations from being applied.
+    /// </para>
+    /// 
+    /// <para>
+    /// <b>Important:</b>
+    /// The lock provider does not enforce fencing token validation. It is the responsibility
+    /// of the consumer to validate this value in the target system.
+    /// </para>
+    /// </remarks>
+    public virtual long FencingToken => 0;
+
+    /// <summary>
     /// Gets the date and time when the lock was successfully acquired, or null if the lock has not been acquired.
     /// </summary>
     public virtual DateTimeOffset? LockAchieved { get; protected set; }

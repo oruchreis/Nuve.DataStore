@@ -368,6 +368,17 @@ public partial class RedisStoreProvider : IDataStoreProvider
                 locker = null;
                 return false;
             }
+
+            try
+            {
+                var fencingToken = IncrementFencingToken(key);
+                locker.SetFencingToken(fencingToken);
+            }
+            catch
+            {
+                locker.Release();
+                throw;
+            }
         }
         catch (Exception)
         {
@@ -386,15 +397,49 @@ public partial class RedisStoreProvider : IDataStoreProvider
             if (!await locker.TryAcquireLockAsync())
             {
                 locker.Dispose();
-                locker = null;
+                return null;
+            }
+
+            try
+            {
+                var fencingToken = await IncrementFencingTokenAsync(key);
+                locker.SetFencingToken(fencingToken);
+            }
+            catch
+            {
+                await locker.ReleaseAsync();
+                throw;
             }
         }
         catch (Exception)
         {
             locker?.Dispose();
-            locker = null;
+            return null;
         }
         return locker;
     }
 
+    private long IncrementFencingToken(string key)
+    {
+        long fencingToken = 0;
+
+        RedisCall(redis =>
+        {
+            fencingToken = redis.StringIncrement($"{key}:__fencing__");
+        });
+
+        return fencingToken;
+    }
+
+    private async Task<long> IncrementFencingTokenAsync(string key)
+    {
+        long fencingToken = 0;
+
+        await RedisCallAsync(async redis =>
+        {
+            fencingToken = await redis.StringIncrementAsync($"{key}:__fencing__");
+        });
+
+        return fencingToken;
+    }
 }

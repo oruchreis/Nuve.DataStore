@@ -64,6 +64,13 @@ public sealed class RedisDataStoreLock : DataStoreLock
     private readonly bool _throwWhenTimeout;
     internal readonly TimeSpan SlidingExpire;
     internal readonly string Token = Guid.NewGuid().ToString();
+    private long _fencingToken;
+    /// <inheritdoc />
+    public override string? OwnerToken => Token;
+    /// <inheritdoc />
+    public override long FencingToken => Interlocked.Read(ref _fencingToken);
+
+    internal void SetFencingToken(long token) => Interlocked.Exchange(ref _fencingToken, token);
     /// <inheritdoc />
     public override DateTimeOffset? LockAchieved { get; protected set; }
     private SemaphoreSlim _syncObj = new(1, 1);

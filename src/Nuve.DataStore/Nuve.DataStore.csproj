@@ -3,9 +3,9 @@
 		<AssemblyTitle>Nuve.DataStore</AssemblyTitle>
 		<AssemblyName>Nuve.DataStore</AssemblyName>
 		<PackageId>Nuve.DataStore</PackageId>
-		<Version>1.2.12</Version>
-		<AssemblyVersion>1.2.12</AssemblyVersion>
-		<FileVersion>1.2.12</FileVersion>
+		<Version>1.2.13</Version>
+		<AssemblyVersion>1.2.13</AssemblyVersion>
+		<FileVersion>1.2.13</FileVersion>
 		<PackageProjectUrl>https://github.com/oruchreis/Nuve.DataStore</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/oruchreis/Nuve.DataStore.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
