@@ -97,6 +97,13 @@ public abstract class DataStoreLock : IDisposable
 #endif
 
     /// <summary>
+    /// Asynchronously retrieves the remaining time to live (TTL) for the associated data store resource, if available.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation. The task result contains a <see cref="TimeSpan"/> indicating
+    /// the remaining TTL, or <see langword="null"/> if the TTL is not set or cannot be determined.</returns>
+    public abstract Task<TimeSpan?> GetTtlAsync();
+
+    /// <summary>
     /// Attempts to extend the expiration time of the lock.
     /// </summary>
     /// <remarks>This method does not guarantee that the expiration will be extended if the lock has already

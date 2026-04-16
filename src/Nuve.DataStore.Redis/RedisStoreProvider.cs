@@ -58,13 +58,10 @@ public partial class RedisStoreProvider : IDataStoreProvider
             e is RedisConnectionException
             )
         {
-            if (conn != null)
-            {
-                conn.Dispose();
-                conn = null;
-            }
+            conn?.Dispose();
+            conn = null;
 
-            exceptions ??= new List<Exception>();
+            exceptions ??= [];
 
             exceptions.Add(e);
 

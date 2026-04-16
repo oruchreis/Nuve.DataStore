@@ -297,4 +297,25 @@ public sealed class RedisDataStoreLock : DataStoreLock
         }
         return result;
     }
+
+    /// <inheritdoc />
+    public override async Task<TimeSpan?> GetTtlAsync()
+    {
+        try
+        {
+            await _syncObj.WaitAsync();
+            if (LockAchieved == null)
+                throw new InvalidOperationException("Lock is not acquired yet.");
+            TimeSpan? result = null;
+            await _provider.RedisCallAsync(async redis =>
+            {
+                result = await redis.KeyTimeToLiveAsync(Key);
+            });
+            return result;
+        }
+        finally
+        {
+            _syncObj.Release();
+        }
+    }
 }
