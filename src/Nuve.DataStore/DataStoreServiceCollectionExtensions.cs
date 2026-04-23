@@ -5,9 +5,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nuve.DataStore.Configuration;
 using Nuve.DataStore.Internal;
-#if NET48
-using System.Configuration;
-#endif
 
 namespace Nuve.DataStore;
 
@@ -27,14 +24,16 @@ public static class DataStoreServiceCollectionExtensions
 
         services.TryAddSingleton<DataStoreManager>(serviceProvider =>
         {
+            var logger = serviceProvider.GetRequiredService<ILogger<DataStoreManager>>();
+
             return new DataStoreManager(
                 serviceProvider,
-                registrationStore.Providers,
+                registrationStore.GetFinalProviders(logger),
                 registrationStore.Connections,
                 serviceProvider.GetRequiredService<IDataStoreSerializer>(),
                 serviceProvider.GetRequiredService<IDataStoreCompressor>(),
                 serviceProvider.GetRequiredService<IDataStoreProfiler>(),
-                serviceProvider.GetRequiredService<ILogger<DataStoreManager>>());
+                logger);
         });
 
         services.TryAddEnumerable(
@@ -42,31 +41,55 @@ public static class DataStoreServiceCollectionExtensions
 
         var builder = new DataStoreBuilder(services);
 
+        RegisterConfigurationProviders(builder, configuration);
         RegisterConfigurationConnections(builder, configuration);
 
 #if NET48
+        RegisterLegacyConfigurationProviders(builder);
         RegisterLegacyConfigurationConnections(builder);
 #endif
 
         return builder;
     }
 
-    internal static DataStoreRegistrationStore GetOrAddRegistrationStore(IServiceCollection services)
+    private static void RegisterConfigurationProviders(
+        IDataStoreBuilder builder,
+        IConfiguration? configuration)
     {
-        ThrowHelper.ThrowIfNull(services);
+        if (configuration == null)
+            return;
 
-        foreach (var descriptor in services)
+        var section = configuration.GetSection("DataStore");
+        if (!section.Exists())
+            return;
+
+        var options = section.Get<DataStoreOptions>();
+        if (options?.Providers == null)
+            return;
+
+        var logger = GetBootstrapLogger(builder.Services);
+        var registrationStore = GetOrAddRegistrationStore(builder.Services);
+
+        foreach (var provider in options.Providers)
         {
-            if (descriptor.ServiceType != typeof(DataStoreRegistrationStore))
+            if (string.IsNullOrWhiteSpace(provider.Name))
                 continue;
 
-            if (descriptor.ImplementationInstance is DataStoreRegistrationStore existingInstance)
-                return existingInstance;
+            registrationStore.AddOrReplaceProviderOptionsFromConfiguration(
+                provider.Name,
+                new ConnectionOptions
+                {
+                    ConnectionString = provider.ConnectionString,
+                    ConnectionMode = provider.ConnectionMode,
+                    RetryCount = provider.RetryCount,
+                    MaxPoolSize = provider.MaxPoolSize,
+                    PoolWaitTimeout = provider.PoolWaitTimeout,
+                    BackgroundProbeMinInterval = provider.BackgroundProbeMinInterval,
+                    HealthCheckTimeout = provider.HealthCheckTimeout,
+                    SwapDisposeDelay = provider.SwapDisposeDelay
+                },
+                logger);
         }
-
-        var created = new DataStoreRegistrationStore();
-        services.AddSingleton(created);
-        return created;
     }
 
     private static void RegisterConfigurationConnections(
@@ -85,13 +108,14 @@ public static class DataStoreServiceCollectionExtensions
             return;
 
         var logger = GetBootstrapLogger(builder.Services);
+        var registrationStore = GetOrAddRegistrationStore(builder.Services);
 
         if (options.DefaultConnection != null)
         {
-            GetOrAddRegistrationStore(builder.Services).AddOrReplaceConnection(
+            registrationStore.AddOrReplaceConnection(
                 new DataStoreConnectionRegistration
                 {
-                    Name = "__default__",
+                    Name = DataStoreConstants.DefaultConnectionName,
                     ProviderName = options.DefaultConnection.Provider,
                     RootNamespace = options.DefaultConnection.RootNamespace ?? string.Empty,
                     CompressBiggerThan = options.DefaultConnection.CompressBiggerThan,
@@ -110,7 +134,7 @@ public static class DataStoreServiceCollectionExtensions
             if (string.IsNullOrWhiteSpace(connection.Name))
                 continue;
 
-            GetOrAddRegistrationStore(builder.Services).AddOrReplaceConnection(
+            registrationStore.AddOrReplaceConnection(
                 new DataStoreConnectionRegistration
                 {
                     Name = connection.Name,
@@ -126,6 +150,62 @@ public static class DataStoreServiceCollectionExtensions
     }
 
 #if NET48
+    private static void RegisterLegacyConfigurationProviders(IDataStoreBuilder builder)
+    {
+        var logger = GetBootstrapLogger(builder.Services);
+        var registrationStore = GetOrAddRegistrationStore(builder.Services);
+
+        var config = DataStoreConfigurationSection.GetConfiguration();
+        if (config?.Providers == null)
+            return;
+
+        foreach (ProviderConfigurationElement provider in config.Providers)
+        {
+            if (string.IsNullOrWhiteSpace(provider.Name))
+                continue;
+
+            var connectionOptions = new ConnectionOptions
+            {
+                ConnectionString = provider.ConnectionString,
+                ConnectionMode = provider.ConnectionMode
+            };
+            if (provider.RetryCount != null)
+            {
+                connectionOptions.RetryCount = provider.RetryCount.Value;
+            }
+
+            if (provider.MaxPoolSize != null)
+            {
+                connectionOptions.MaxPoolSize = provider.MaxPoolSize.Value;
+            }
+
+            if (provider.PoolWaitTimeout != null)
+            {
+                connectionOptions.PoolWaitTimeout = provider.PoolWaitTimeout.Value;
+            }
+
+            if (provider.BackgroundProbeMinInterval != null)
+            {
+                connectionOptions.BackgroundProbeMinInterval = provider.BackgroundProbeMinInterval.Value;
+            }
+
+            if (provider.HealthCheckTimeout != null)
+            {
+                connectionOptions.HealthCheckTimeout = provider.HealthCheckTimeout.Value;
+            }
+
+            if (provider.SwapDisposeDelay != null)
+            {
+                connectionOptions.SwapDisposeDelay = provider.SwapDisposeDelay.Value;
+            }
+
+            registrationStore.AddOrReplaceProviderOptionsFromConfiguration(
+                provider.Name,
+                connectionOptions,
+                logger);
+        }
+    }
+
     private static void RegisterLegacyConfigurationConnections(IDataStoreBuilder builder)
     {
         var logger = GetBootstrapLogger(builder.Services);
@@ -140,7 +220,7 @@ public static class DataStoreServiceCollectionExtensions
             registrationStore.AddOrReplaceConnection(
                 new DataStoreConnectionRegistration
                 {
-                    Name = "__default__",
+                    Name = DataStoreConstants.DefaultConnectionName,
                     ProviderName = config.DefaultConnection.ProviderName,
                     RootNamespace = config.DefaultConnection.Namespace ?? string.Empty,
                     CompressBiggerThan = config.DefaultConnection.CompressBiggerThan,
@@ -174,6 +254,24 @@ public static class DataStoreServiceCollectionExtensions
         }
     }
 #endif
+
+    internal static DataStoreRegistrationStore GetOrAddRegistrationStore(IServiceCollection services)
+    {
+        ThrowHelper.ThrowIfNull(services);
+
+        foreach (var descriptor in services)
+        {
+            if (descriptor.ServiceType != typeof(DataStoreRegistrationStore))
+                continue;
+
+            if (descriptor.ImplementationInstance is DataStoreRegistrationStore existingInstance)
+                return existingInstance;
+        }
+
+        var created = new DataStoreRegistrationStore();
+        services.AddSingleton(created);
+        return created;
+    }
 
     internal static ILogger GetBootstrapLogger(IServiceCollection services)
     {

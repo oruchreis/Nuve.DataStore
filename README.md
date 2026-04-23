@@ -30,6 +30,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
     .AddDataStore()
+    .AddJsonNetDataStoreSerializer()
     .AddRedisDataStoreProvider("Redis", new ConnectionOptions
     {
         ConnectionString = "localhost:6379"
@@ -63,6 +64,49 @@ private static readonly KeyValueStore _store = new();
 await _store.SetAsync("key", "value");
 var value = await _store.GetAsync<string>("key");
 ```
+
+---
+
+## Alternative Configuration
+Startup:
+```csharp
+builder.Services
+    .AddDataStore(builder.Configuration)
+    .AddRedisDataStoreProvider("Redis");
+```
+appsettings.Json:
+```json
+{
+  "DataStore": {
+    "Providers": [
+      {
+        "Name": "Redis",
+        "ConnectionString": "localhost:6379",
+        "ConnectionMode": "Shared",
+        "RetryCount": 5,
+        "MaxPoolSize": 8,
+        "PoolWaitTimeout": "00:00:02",
+        "BackgroundProbeMinInterval": "00:00:05",
+        "HealthCheckTimeout": "00:00:02",
+        "SwapDisposeDelay": "00:00:05"
+      }
+    ],
+    "DefaultConnection": {
+      "Provider": "Redis",
+      "RootNamespace": "app"
+    },
+    "Connections": [
+      {
+        "Name": "cache",
+        "Provider": "Redis",
+        "RootNamespace": "cache"
+      }
+    ]
+  }
+}
+```
+
+You can override any of the above settings via code at startup.
 
 ---
 

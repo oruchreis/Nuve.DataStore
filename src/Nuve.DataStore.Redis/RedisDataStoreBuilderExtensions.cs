@@ -11,6 +11,7 @@ public static class RedisDataStoreBuilderExtensions
         ConnectionOptions? options = null)
     {
         ThrowHelper.ThrowIfNull(builder);
+        ThrowHelper.ThrowIfNullOrWhiteSpace(providerName);
 
         var registrationStore = DataStoreServiceCollectionExtensions.GetOrAddRegistrationStore(builder.Services);
 
@@ -20,6 +21,7 @@ public static class RedisDataStoreBuilderExtensions
                 Name = providerName,
                 ProviderType = typeof(RedisStoreProvider),
                 Options = options ?? new ConnectionOptions(),
+                HasExplicitOptions = options != null,
                 FromConfiguration = false
             },
             NullLogger.Instance,

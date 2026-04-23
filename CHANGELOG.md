@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.0.1] - 2026-04-23
+
+### Added
+- Configuration file based Provider settings.
+
 ## [v2.0.0] - 2026-04-23
 
 ### Added

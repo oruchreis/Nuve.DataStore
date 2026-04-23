@@ -12,6 +12,19 @@ internal class DataStoreConfigurationSection: ConfigurationSection
         return (DataStoreConfigurationSection)ConfigurationManager.GetSection(ConfigPath);
     }
 
+    [ConfigurationProperty("providers")]
+    [ConfigurationCollection(typeof(ProviderConfigurationCollection),
+        AddItemName = "add",
+        ClearItemsName = "clear",
+        RemoveItemName = "remove")]
+    public ProviderConfigurationCollection Providers
+    {
+        get
+        {
+            return (ProviderConfigurationCollection)base["providers"];
+        }
+    }
+
     [ConfigurationProperty("defaultSerializer", IsRequired = false)]
     public string DefaultSerializer
     {

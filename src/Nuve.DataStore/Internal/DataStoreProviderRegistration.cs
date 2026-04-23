@@ -8,6 +8,8 @@ internal sealed class DataStoreProviderRegistration
 
     public ConnectionOptions Options { get; init; } = default!;
 
+    public bool HasExplicitOptions { get; set; }
+
     public bool FromConfiguration { get; init; }
 }
 

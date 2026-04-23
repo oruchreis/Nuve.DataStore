@@ -8,8 +8,6 @@ namespace Nuve.DataStore;
 
 public static class DataStoreBuilderExtensions
 {
-    private const string DefaultConnectionName = "__default__";
-
     public static IDataStoreBuilder AddDefaultConnection(
         this IDataStoreBuilder builder,
         string provider,
@@ -24,7 +22,7 @@ public static class DataStoreBuilderExtensions
         registrationStore.AddOrReplaceConnection(
             new DataStoreConnectionRegistration
             {
-                Name = DefaultConnectionName,
+                Name = DataStoreConstants.DefaultConnectionName,
                 ProviderName = provider,
                 RootNamespace = rootNamespace ?? string.Empty,
                 CompressBiggerThan = compressBiggerThan,

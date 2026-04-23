@@ -7,12 +7,13 @@ internal sealed class DataStoreRegistrationStore
     private readonly Dictionary<string, DataStoreProviderRegistration> _providers =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly Dictionary<string, DataStoreProviderOptionsRegistration> _providerOptionsFromConfiguration =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private readonly Dictionary<string, DataStoreConnectionRegistration> _connections =
         new(StringComparer.OrdinalIgnoreCase);
 
     private string? _defaultConnectionName;
-
-    public IReadOnlyCollection<DataStoreProviderRegistration> Providers => _providers.Values;
 
     public IReadOnlyCollection<DataStoreConnectionRegistration> Connections => _connections.Values;
 
@@ -46,6 +47,67 @@ internal sealed class DataStoreRegistrationStore
         }
 
         _providers.Add(registration.Name, registration);
+    }
+
+    public void AddOrReplaceProviderOptionsFromConfiguration(
+        string providerName,
+        ConnectionOptions options,
+        ILogger logger)
+    {
+        ThrowHelper.ThrowIfNullOrWhiteSpace(providerName);
+        ThrowHelper.ThrowIfNull(options);
+        ThrowHelper.ThrowIfNull(logger);
+
+        if (_providerOptionsFromConfiguration.ContainsKey(providerName))
+        {
+            logger.LogWarning(
+                "The data store provider options for '{ProviderName}' defined in configuration are being overridden by a later configuration entry.",
+                providerName);
+        }
+
+        _providerOptionsFromConfiguration[providerName] = new DataStoreProviderOptionsRegistration
+        {
+            Name = providerName,
+            Options = options,
+            FromConfiguration = true
+        };
+    }
+
+    public IReadOnlyCollection<DataStoreProviderRegistration> GetFinalProviders(ILogger logger)
+    {
+        ThrowHelper.ThrowIfNull(logger);
+
+        var result = new List<DataStoreProviderRegistration>(_providers.Count);
+
+        foreach (var provider in _providers.Values)
+        {
+            var finalOptions = provider.Options;
+
+            if (_providerOptionsFromConfiguration.TryGetValue(provider.Name, out var configOptionsRegistration))
+            {
+                finalOptions = configOptionsRegistration.Options;
+
+                if (provider.HasExplicitOptions)
+                {
+                    logger.LogWarning(
+                        "The data store provider '{ProviderName}' defined in code overrides provider options loaded from configuration.",
+                        provider.Name);
+
+                    finalOptions = provider.Options;
+                }
+            }
+
+            result.Add(new DataStoreProviderRegistration
+            {
+                Name = provider.Name,
+                ProviderType = provider.ProviderType,
+                Options = finalOptions,
+                HasExplicitOptions = provider.HasExplicitOptions,
+                FromConfiguration = provider.FromConfiguration
+            });
+        }
+
+        return result;
     }
 
     public void AddOrReplaceConnection(
