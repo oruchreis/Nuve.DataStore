@@ -1,53 +1,79 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nuve.DataStore.Redis;
-using Nuve.DataStore.Serializer.JsonNet;
-using StackExchange.Redis;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Nuve.DataStore.Test;
 
 [TestClass]
 public class RedisStoreProviderTests
 {
-    static RedisStoreProviderTests()
-    {
-        DataStoreManager.DefaultSerializer = new JsonNetDataStoreSerializer();
-        DataStoreManager.RegisterProvider("Redis", typeof(RedisStoreProvider));
+    private ServiceProvider _serviceProvider = default!;
+    private IDataStoreProvider _provider = default!;
 
-        DataStoreManager.CreateConnection(
-            connectionName: "redis",
-            providerName: "Redis",
-            connectionString: "localhost:6379",
-            rootNamespace: "test",
-            isDefault: true);
+    [TestInitialize]
+    public void TestInitialize()
+    {
+        DataStoreRuntime.ResetForTests();
+
+        _serviceProvider = Bootstrap.BuildRedisServiceProvider(
+            rootNamespace: Bootstrap.NewRootNamespace("provider"));
+
+        _serviceProvider.InitializeDataStore();
+
+        var context = DataStoreRuntime.Manager.GetConnection("redis");
+        _provider = context.Provider;
+    }
+
+    [TestCleanup]
+    public void TestCleanup()
+    {
+        _serviceProvider.Dispose();
+        DataStoreRuntime.ResetForTests();
     }
 
     [TestMethod]
     public void LockSlidingExpiration()
     {
-        DataStoreManager.GetProvider("redis", out var provider, out var rootNameSpace, out int? defaultCompressBiggerThan);
         var slidingExpire = TimeSpan.FromSeconds(6);
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-        var lockItem = provider.AcquireLock("test-lock", throwWhenTimeout: true, slidingExpire: slidingExpire, waitCancelToken: cts.Token)!;
+
+        var lockItem = _provider.AcquireLock(
+            "test-lock",
+            throwWhenTimeout: true,
+            slidingExpire: slidingExpire,
+            waitCancelToken: cts.Token)!;
+
         try
         {
             Assert.IsNotNull(lockItem.LockAchieved);
             Console.WriteLine("{0:hh:mm:ss.fff}\tlock achieved: {1:hh:mm:ss.fff}", DateTimeOffset.UtcNow, lockItem.LockAchieved);
-            var ttl = provider.GetExpire("test-lock");
+
+            var ttl = _provider.GetExpire("test-lock");
             Console.WriteLine("lock-ttl at start: {0}", ttl!.Value.TotalMilliseconds);
-            Assert.IsTrue(ttl.Value.TotalMilliseconds > (slidingExpire.TotalMilliseconds / 2)); // ttl must close to slidingExpire
+
+            Assert.IsTrue(ttl.Value.TotalMilliseconds > (slidingExpire.TotalMilliseconds / 2));
+
             for (int i = 0; i < 3; i++)
             {
                 Console.WriteLine("Test iteration: {0}", i);
-                Thread.Sleep(Math.Max((int)ttl.Value.TotalMilliseconds - ((int)slidingExpire.TotalMilliseconds / 2) + RedisDataStoreLock.CheckSlidingExpirationMs + 1000, 1));
-                Console.WriteLine("{0:hh:mm:ss.fff}\tlock achieved after halflife: {1:hh:mm:ss.fff}", DateTimeOffset.UtcNow, lockItem.LockAchieved);
-                ttl = provider.GetExpire("test-lock"); //after halflife sliding expiraration must be executed and lock must be extended to slidingExpire
+
+                Thread.Sleep(
+                    Math.Max(
+                        (int)ttl.Value.TotalMilliseconds
+                        - ((int)slidingExpire.TotalMilliseconds / 2)
+                        + RedisDataStoreLock.CheckSlidingExpirationMs
+                        + 1000,
+                        1));
+
+                Console.WriteLine(
+                    "{0:hh:mm:ss.fff}\tlock achieved after halflife: {1:hh:mm:ss.fff}",
+                    DateTimeOffset.UtcNow,
+                    lockItem.LockAchieved);
+
+                ttl = _provider.GetExpire("test-lock");
                 Console.WriteLine("lock-ttl after after halflife: {0}", ttl!.Value.TotalMilliseconds);
-                Assert.IsTrue(ttl.Value.TotalMilliseconds > (slidingExpire.TotalMilliseconds / 2)); // ttl must close to slidingExpire
+
+                Assert.IsTrue(ttl.Value.TotalMilliseconds > (slidingExpire.TotalMilliseconds / 2));
             }
         }
         finally
@@ -55,18 +81,19 @@ public class RedisStoreProviderTests
             lockItem.Dispose();
         }
 
-        Assert.IsFalse(((IKeyValueStoreProvider)provider).Contains("test-lock"));
+        Assert.IsFalse(((IKeyValueStoreProvider)_provider).Contains("test-lock"));
     }
 
     [TestMethod]
     public void Count()
     {
-        DataStoreManager.GetProvider("redis", out var provider, out var rootNameSpace, out int? defaultCompressBiggerThan);
-        ((IKeyValueStoreProvider)provider).Set("Test:1", [], true);
-        ((IKeyValueStoreProvider)provider).Set("Test:2", [], true);
-        ((IKeyValueStoreProvider)provider).Set("Test:3", [], true);
-        ((IKeyValueStoreProvider)provider).Set("Test:4", [], true);
-        Assert.AreEqual(4, ((IKeyValueStoreProvider)provider).Count("Test:*"));
+        var keyValueProvider = (IKeyValueStoreProvider)_provider;
 
+        keyValueProvider.Set("Test:1", [], true);
+        keyValueProvider.Set("Test:2", [], true);
+        keyValueProvider.Set("Test:3", [], true);
+        keyValueProvider.Set("Test:4", [], true);
+
+        Assert.AreEqual(4, keyValueProvider.Count("Test:*"));
     }
 }

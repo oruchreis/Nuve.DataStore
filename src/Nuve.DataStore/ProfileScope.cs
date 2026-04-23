@@ -21,9 +21,9 @@ internal sealed class ProfileScope : IDisposable
             localContext = DataStoreProfiler.Begin(method, key);
         }
 
-        if (DataStoreManager.GlobalProfiler != null)
+        if (DataStoreRuntime.Manager.GlobalProfiler != null)
         {
-            globalContext = DataStoreManager.GlobalProfiler.Begin(method, key);
+            globalContext = DataStoreRuntime.Manager.GlobalProfiler.Begin(method, key);
         }
 
         ProfilerContext = new ProfilerContext(globalContext, localContext);
@@ -64,10 +64,10 @@ internal sealed class ProfileScope : IDisposable
                 InternalProfileManager.Current?.DataStoreProfiler?.Finish(ProfilerContext.LocalContext, _profileResults.ToArray());
             }
 
-            if (DataStoreManager.GlobalProfiler != null && ProfilerContext.GlobalContext != null)
+            if (DataStoreRuntime.Manager.GlobalProfiler != null && ProfilerContext.GlobalContext != null)
             {
                 // _profileResults.ToArray() ile tekrardan array oluşturuyoruz, referans içermesin diye.
-                DataStoreManager.GlobalProfiler.Finish(ProfilerContext.GlobalContext, _profileResults.ToArray());
+                DataStoreRuntime.Manager.GlobalProfiler.Finish(ProfilerContext.GlobalContext, _profileResults.ToArray());
             }
         }
         finally

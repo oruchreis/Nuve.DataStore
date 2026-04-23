@@ -15,16 +15,16 @@ namespace Nuve.DataStore
         /// <summary>
         /// Initializes the data store provider with the specified connection string and optional profiler.
         /// </summary>
-        /// <param name="connectionString">The connection string used to establish connections to the data store. Cannot be null or empty.</param>
+        /// <param name="connectionOptions">The connection options used to establish connections to the data store. Cannot be null.</param>
         /// <param name="profiler">An optional profiler instance used to monitor data store operations, or null if profiling is not required.</param>
-        void Initialize(string connectionString, IDataStoreProfiler? profiler);
+        void Initialize(ConnectionOptions connectionOptions, IDataStoreProfiler? profiler);
         /// <summary>
         /// Asynchronously initializes the data store provider with the specified connection string and optional profiler.
         /// </summary>
-        /// <param name="connectionString">The connection string used to establish connections to the data store. Cannot be null or empty.</param>
+        /// <param name="connectionOptions">The connection options used to establish connections to the data store. Cannot be null.</param>
         /// <param name="profiler">An optional profiler instance used to monitor data store operations, or null if profiling is not required.</param>
         /// <returns>A task that represents the asynchronous initialization operation.</returns>
-        Task InitializeAsync(string connectionString, IDataStoreProfiler? profiler);
+        Task InitializeAsync(ConnectionOptions connectionOptions, IDataStoreProfiler? profiler);
         /// <summary>
         /// Gets the type of the specified key in the data store.
         /// </summary>

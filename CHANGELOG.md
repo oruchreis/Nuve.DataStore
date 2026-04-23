@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.0.0] - 2026-04-23
+
+### Added
+- Dependency Injection (IServiceCollection) integration
+- Provider-based configuration via code
+- Pooled and Shared connection modes
+- Support for .NET 9 and .NET 10
+
+### Changed
+- DataStore initialization moved to explicit startup step
+
+### Breaking Changes
+- DataStore must be initialized using InitializeDataStore or InitializeDataStoreAsync
+- Static DataStoreManager usage removed
+- DataStoreManager and DataStoreBase are now DI-integrated
+
+
 ## [v1.2.13] - 2026-04-13
 
 ### Added

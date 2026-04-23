@@ -1,10 +1,14 @@
-﻿using StackExchange.Redis;
+﻿using Nuve.DataStore.Internal;
+using StackExchange.Redis;
 using System.Collections.Concurrent;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 
+#if TEST
 [assembly: InternalsVisibleTo("Nuve.DataStore.Test")]
+#endif
+
 namespace Nuve.DataStore.Redis;
 
 /// <summary>
@@ -33,205 +37,248 @@ namespace Nuve.DataStore.Redis;
 /// </summary>
 public partial class RedisStoreProvider : IDataStoreProvider
 {
-    private static readonly ConcurrentDictionary<string, ConcurrentQueue<ConnectionMultiplexer>> _connectionPools = new();
-
+    private ConnectionOptions? _options;
+    private IRedisConnectionManager? _connectionManager;
     private string? _connectionString;
-    private ConcurrentQueue<ConnectionMultiplexer>? _connectionPool;
 
     internal T RedisCall<T>(Func<IDatabase, T> callFunction, int retryCount = 0, List<Exception>? exceptions = null)
     {
-        if (_connectionString == null || _connectionPool == null)
+        if (_connectionManager == null || _options == null)
             throw new InvalidOperationException("The provider hasn't initialized yet.");
 
-        ConnectionMultiplexer? conn = null;
+        IRedisConnectionLease? lease = null;
         try
         {
-            if (!_connectionPool.TryDequeue(out conn))
-            {
-                conn = ConnectionMultiplexer.Connect(_connectionString);
-            }
-            return callFunction(conn.GetDatabase())!;
+            lease = _connectionManager.Acquire();
+            return callFunction(lease.Multiplexer.GetDatabase())!;
         }
         catch (Exception e) when (
-            e is RedisServerException ||
             e is RedisTimeoutException ||
-            e is RedisConnectionException
-            )
+            e is TimeoutException)
         {
-            conn?.Dispose();
-            conn = null;
+            if (lease != null)
+                _connectionManager.ReportTimeout(lease.Multiplexer, e);
 
             exceptions ??= [];
-
             exceptions.Add(e);
 
-            if (retryCount < 5)
+            if (retryCount < _options.RetryCount)
                 return RedisCall(callFunction, retryCount + 1, exceptions);
-            else
-                throw new AggregateException($"Retry limit exceeded.", exceptions);
+
+            throw new AggregateException("Retry limit exceeded.", exceptions);
+        }
+        catch (Exception e) when (
+            e is RedisConnectionException ||
+            e is SocketException)
+        {
+            if (lease != null)
+                _connectionManager.ReportConnectionFailure(lease.Multiplexer, e);
+
+            exceptions ??= [];
+            exceptions.Add(e);
+
+            if (retryCount < _options.RetryCount)
+                return RedisCall(callFunction, retryCount + 1, exceptions);
+
+            throw new AggregateException("Retry limit exceeded.", exceptions);
         }
         finally
         {
-            if (conn != null)
-                _connectionPool.Enqueue(conn);
+            lease?.Dispose();
         }
     }
 
     internal void RedisCall(Action<IDatabase> callFunction, int retryCount = 0, List<Exception>? exceptions = null)
     {
-        if (_connectionString == null || _connectionPool == null)
+        if (_connectionManager == null || _options == null)
             throw new InvalidOperationException("The provider hasn't initialized yet.");
 
-        ConnectionMultiplexer? conn = null;
+        IRedisConnectionLease? lease = null;
         try
         {
-            if (!_connectionPool.TryDequeue(out conn))
-            {
-                conn = ConnectionMultiplexer.Connect(_connectionString);
-            }
-            callFunction(conn.GetDatabase());
+            lease = _connectionManager.Acquire();
+            callFunction(lease.Multiplexer.GetDatabase());
         }
         catch (Exception e) when (
-            e is RedisServerException ||
             e is RedisTimeoutException ||
-            e is RedisConnectionException
-            )
+            e is TimeoutException)
         {
-            if (conn != null)
-            {
-                conn.Dispose();
-                conn = null;
-            }
+            if (lease != null)
+                _connectionManager.ReportTimeout(lease.Multiplexer, e);
 
-            exceptions ??= new List<Exception>();
-
+            exceptions ??= [];
             exceptions.Add(e);
 
-            if (retryCount < 5)
+            if (retryCount < _options.RetryCount)
                 RedisCall(callFunction, retryCount + 1, exceptions);
             else
-                throw new AggregateException($"Retry limit exceeded.", exceptions);
+                throw new AggregateException("Retry limit exceeded.", exceptions);
+        }
+        catch (Exception e) when (
+            e is RedisConnectionException ||
+            e is SocketException)
+        {
+            if (lease != null)
+                _connectionManager.ReportConnectionFailure(lease.Multiplexer, e);
+
+            exceptions ??= [];
+            exceptions.Add(e);
+
+            if (retryCount < _options.RetryCount)
+                RedisCall(callFunction, retryCount + 1, exceptions);
+            else
+                throw new AggregateException("Retry limit exceeded.", exceptions);
         }
         finally
         {
-            if (conn != null)
-                _connectionPool.Enqueue(conn);
+            lease?.Dispose();
         }
     }
 
     internal async Task<T> RedisCallAsync<T>(Func<IDatabase, Task<T>> callFunctionAsync, int retryCount = 0, List<Exception>? exceptions = null)
     {
-        if (_connectionString == null || _connectionPool == null)
+        if (_connectionManager == null || _options == null)
             throw new InvalidOperationException("The provider hasn't initialized yet.");
 
-        ConnectionMultiplexer? conn = null;
+        IRedisConnectionLease? lease = null;
         try
         {
-            if (!_connectionPool.TryDequeue(out conn))
-            {
-                conn = await ConnectionMultiplexer.ConnectAsync(_connectionString);
-            }
-            return (await callFunctionAsync(conn.GetDatabase()))!;
+            lease = await _connectionManager.AcquireAsync().ConfigureAwait(false);
+            return (await callFunctionAsync(lease.Multiplexer.GetDatabase()).ConfigureAwait(false))!;
         }
         catch (Exception e) when (
-            e is RedisServerException ||
             e is RedisTimeoutException ||
-            e is RedisConnectionException
-            )
+            e is TimeoutException)
         {
-            if (conn != null)
-            {
-                conn.Dispose();
-                conn = null;
-            }
+            if (lease != null)
+                _connectionManager.ReportTimeout(lease.Multiplexer, e);
 
-            exceptions ??= new List<Exception>();
-
+            exceptions ??= [];
             exceptions.Add(e);
 
-            if (retryCount < 5)
-                return await RedisCallAsync(callFunctionAsync, retryCount + 1, exceptions);
-            else
-                throw new AggregateException($"Retry limit exceeded.", exceptions);
+            if (retryCount < _options.RetryCount)
+                return await RedisCallAsync(callFunctionAsync, retryCount + 1, exceptions).ConfigureAwait(false);
+
+            throw new AggregateException("Retry limit exceeded.", exceptions);
+        }
+        catch (Exception e) when (
+            e is RedisConnectionException ||
+            e is SocketException)
+        {
+            if (lease != null)
+                _connectionManager.ReportConnectionFailure(lease.Multiplexer, e);
+
+            exceptions ??= [];
+            exceptions.Add(e);
+
+            if (retryCount < _options.RetryCount)
+                return await RedisCallAsync(callFunctionAsync, retryCount + 1, exceptions).ConfigureAwait(false);
+
+            throw new AggregateException("Retry limit exceeded.", exceptions);
         }
         finally
         {
-            if (conn != null)
-                _connectionPool.Enqueue(conn);
+            if (lease != null)
+                await lease.DisposeAsync().ConfigureAwait(false);
         }
     }
 
     internal async Task RedisCallAsync(Func<IDatabase, Task> callFunctionAsync, int retryCount = 0, List<Exception>? exceptions = null)
     {
-        if (_connectionString == null || _connectionPool == null)
+        if (_connectionManager == null || _options == null)
             throw new InvalidOperationException("The provider hasn't initialized yet.");
 
-        ConnectionMultiplexer? conn = null;
+        IRedisConnectionLease? lease = null;
         try
         {
-            if (!_connectionPool.TryDequeue(out conn))
-            {
-                conn = await ConnectionMultiplexer.ConnectAsync(_connectionString);
-            }
-            await callFunctionAsync(conn.GetDatabase());
+            lease = await _connectionManager.AcquireAsync().ConfigureAwait(false);
+            await callFunctionAsync(lease.Multiplexer.GetDatabase()).ConfigureAwait(false);
         }
         catch (Exception e) when (
-            e is RedisServerException ||
             e is RedisTimeoutException ||
-            e is RedisConnectionException
-            )
+            e is TimeoutException)
         {
-            if (conn != null)
-            {
-                conn.Dispose();
-                conn = null;
-            }
+            if (lease != null)
+                _connectionManager.ReportTimeout(lease.Multiplexer, e);
 
-            exceptions ??= new List<Exception>();
-
+            exceptions ??= [];
             exceptions.Add(e);
 
-            if (retryCount < 5)
-                await RedisCallAsync(callFunctionAsync, retryCount + 1, exceptions);
+            if (retryCount < _options.RetryCount)
+                await RedisCallAsync(callFunctionAsync, retryCount + 1, exceptions).ConfigureAwait(false);
             else
-                throw new AggregateException($"Retry limit exceeded.", exceptions);
+                throw new AggregateException("Retry limit exceeded.", exceptions);
+        }
+        catch (Exception e) when (
+            e is RedisConnectionException ||
+            e is SocketException)
+        {
+            if (lease != null)
+                _connectionManager.ReportConnectionFailure(lease.Multiplexer, e);
+
+            exceptions ??= [];
+            exceptions.Add(e);
+
+            if (retryCount < _options.RetryCount)
+                await RedisCallAsync(callFunctionAsync, retryCount + 1, exceptions).ConfigureAwait(false);
+            else
+                throw new AggregateException("Retry limit exceeded.", exceptions);
         }
         finally
         {
-            if (conn != null)
-                _connectionPool.Enqueue(conn);
+            if (lease != null)
+                await lease.DisposeAsync().ConfigureAwait(false);
         }
     }
 
     /// <summary>
-    /// Initializes the Redis store provider with the specified connection string and optional profiler.
+    /// Backward-compatible initialize overload.
+    /// Defaults to shared mode.
     /// </summary>
-    /// <param name="connectionString">The connection string used to establish connections to the Redis server. Cannot be null.</param>
-    /// <param name="profiler">An optional profiler instance used to monitor data store operations, or null if profiling is not required.</param>
-    public virtual void Initialize(string connectionString, IDataStoreProfiler? profiler)
+    public virtual void Initialize(string connectionString, ConnectionMode connectionMode, IDataStoreProfiler? profiler)
     {
-        _connectionString = connectionString;
-        _connectionPool = _connectionPools.GetOrAdd(connectionString, cs => new ConcurrentQueue<ConnectionMultiplexer>());
+        Initialize(new ConnectionOptions
+        {
+            ConnectionString = connectionString,
+            ConnectionMode = connectionMode
+        }, profiler);
     }
 
-    /// <summary>
-    /// Asynchronously initializes the data store provider using the specified connection string and optional profiler.
-    /// </summary>
-    /// <param name="connectionString">The connection string used to configure the data store provider. Cannot be null or empty.</param>
-    /// <param name="profiler">An optional profiler instance for monitoring data store operations; or null if profiling is not required.</param>
-    /// <returns>A completed task that represents the asynchronous initialization operation.</returns>
-    public virtual Task InitializeAsync(string connectionString, IDataStoreProfiler? profiler)
+    public virtual Task InitializeAsync(string connectionString, ConnectionMode connectionMode, IDataStoreProfiler? profiler)
     {
-        Initialize(connectionString, profiler);
+        Initialize(connectionString, connectionMode, profiler);
+        return Task.CompletedTask;
+    }
 
+    public virtual void Initialize(ConnectionOptions options, IDataStoreProfiler? profiler)
+    {
+        ThrowHelper.ThrowIfNull(options);
+        ThrowHelper.ThrowIfNullOrWhiteSpace(options.ConnectionString);          
+
+        _options = options;
+        _connectionString = options.ConnectionString;
+
+        _connectionManager?.Dispose();
+
+        _connectionManager = options.ConnectionMode switch
+        {
+            ConnectionMode.Shared => new SharedRedisConnectionManager(options),
+            ConnectionMode.Pooled => new PooledRedisConnectionManager(options),
+            _ => throw new ArgumentOutOfRangeException(nameof(options.ConnectionMode))
+        };
+    }
+
+    public virtual Task InitializeAsync(ConnectionOptions options, IDataStoreProfiler? profiler)
+    {
+        Initialize(options, profiler);
         return Task.CompletedTask;
     }
 
     StoreKeyType IDataStoreProvider.GetKeyType(string key)
     {
-        return RedisCall(Db =>
+        return RedisCall(db =>
         {
-            var redisType = Db.KeyType(key);
+            var redisType = db.KeyType(key);
             return redisType switch
             {
                 RedisType.List => StoreKeyType.LinkedList,
@@ -245,9 +292,9 @@ public partial class RedisStoreProvider : IDataStoreProvider
 
     async Task<StoreKeyType> IDataStoreProvider.GetKeyTypeAsync(string key)
     {
-        return await RedisCallAsync(async Db =>
+        return await RedisCallAsync(async db =>
         {
-            var redisType = await Db.KeyTypeAsync(key);
+            var redisType = await db.KeyTypeAsync(key).ConfigureAwait(false);
             return redisType switch
             {
                 RedisType.List => StoreKeyType.LinkedList,
@@ -256,55 +303,37 @@ public partial class RedisStoreProvider : IDataStoreProvider
                 RedisType.Set => StoreKeyType.HashSet,
                 _ => StoreKeyType.KeyValue
             };
-        });
+        }).ConfigureAwait(false);
     }
 
     TimeSpan? IDataStoreProvider.GetExpire(string key)
     {
-        return RedisCall(Db =>
-        {
-            return Db.KeyTimeToLive(key);
-        });
+        return RedisCall(db => db.KeyTimeToLive(key));
     }
 
     async Task<TimeSpan?> IDataStoreProvider.GetExpireAsync(string key)
     {
-        return await RedisCallAsync(async Db =>
-        {
-            return await Db.KeyTimeToLiveAsync(key);
-        });
+        return await RedisCallAsync(async db => await db.KeyTimeToLiveAsync(key).ConfigureAwait(false)).ConfigureAwait(false);
     }
 
     bool IDataStoreProvider.SetExpire(string key, TimeSpan expire)
     {
-        return RedisCall(Db =>
-        {
-            return Db.KeyExpire(key, expire);
-        });
+        return RedisCall(db => db.KeyExpire(key, expire));
     }
 
     async Task<bool> IDataStoreProvider.SetExpireAsync(string key, TimeSpan expire)
     {
-        return await RedisCallAsync(async Db =>
-        {
-            return await Db.KeyExpireAsync(key, expire);
-        });
+        return await RedisCallAsync(async db => await db.KeyExpireAsync(key, expire).ConfigureAwait(false)).ConfigureAwait(false);
     }
 
     bool IDataStoreProvider.Remove(string key)
     {
-        return RedisCall(Db =>
-        {
-            return Db.KeyDelete(key);
-        });
+        return RedisCall(db => db.KeyDelete(key));
     }
 
     async Task<bool> IDataStoreProvider.RemoveAsync(string key)
     {
-        return await RedisCallAsync(async Db =>
-        {
-            return await Db.KeyDeleteAsync(key);
-        });
+        return await RedisCallAsync(async db => await db.KeyDeleteAsync(key).ConfigureAwait(false)).ConfigureAwait(false);
     }
 
     void IDataStoreProvider.Lock(string lockKey, TimeSpan waitTimeout, Action action, TimeSpan slidingExpire, bool skipWhenTimeout, bool throwWhenTimeout)
@@ -327,31 +356,30 @@ public partial class RedisStoreProvider : IDataStoreProvider
     DataStoreLock? IDataStoreProvider.AcquireLock(string lockKey, CancellationToken waitCancelToken, TimeSpan slidingExpire, bool throwWhenTimeout)
     {
         TryAcquireLock(lockKey, slidingExpire, throwWhenTimeout, waitCancelToken, out var lockItem);
-
         return lockItem;
     }
 
     async Task IDataStoreProvider.LockAsync(string lockKey, TimeSpan waitTimeout, Func<Task> action, TimeSpan slidingExpire, bool skipWhenTimeout, bool throwWhenTimeout)
     {
         using var cts = new CancellationTokenSource(waitTimeout);
-        var lockItem = await TryAcquireLockAsync(lockKey, slidingExpire, throwWhenTimeout, cts.Token);
+        var lockItem = await TryAcquireLockAsync(lockKey, slidingExpire, throwWhenTimeout, cts.Token).ConfigureAwait(false);
         if (lockItem != null)
         {
             using (lockItem)
             {
-                await action();
+                await action().ConfigureAwait(false);
             }
         }
         else
         {
             if (!skipWhenTimeout)
-                await action();
+                await action().ConfigureAwait(false);
         }
     }
 
     async Task<DataStoreLock?> IDataStoreProvider.AcquireLockAsync(string lockKey, CancellationToken waitCancelToken, TimeSpan slidingExpire, bool throwWhenTimeout)
     {
-        return await TryAcquireLockAsync(lockKey, slidingExpire, throwWhenTimeout, waitCancelToken);
+        return await TryAcquireLockAsync(lockKey, slidingExpire, throwWhenTimeout, waitCancelToken).ConfigureAwait(false);
     }
 
     private bool TryAcquireLock(string key, TimeSpan slidingExpire, bool throwWhenTimeout, CancellationToken waitCancelToken, out RedisDataStoreLock? locker)
@@ -377,12 +405,13 @@ public partial class RedisStoreProvider : IDataStoreProvider
                 throw;
             }
         }
-        catch (Exception)
+        catch
         {
             locker?.Dispose();
             locker = null;
             return false;
         }
+
         return true;
     }
 
@@ -391,7 +420,7 @@ public partial class RedisStoreProvider : IDataStoreProvider
         var locker = new RedisDataStoreLock(this, key, slidingExpire, throwWhenTimeout, waitCancelToken);
         try
         {
-            if (!await locker.TryAcquireLockAsync())
+            if (!await locker.TryAcquireLockAsync().ConfigureAwait(false))
             {
                 locker.Dispose();
                 return null;
@@ -399,20 +428,21 @@ public partial class RedisStoreProvider : IDataStoreProvider
 
             try
             {
-                var fencingToken = await IncrementFencingTokenAsync(key);
+                var fencingToken = await IncrementFencingTokenAsync(key).ConfigureAwait(false);
                 locker.SetFencingToken(fencingToken);
             }
             catch
             {
-                await locker.ReleaseAsync();
+                await locker.ReleaseAsync().ConfigureAwait(false);
                 throw;
             }
         }
-        catch (Exception)
+        catch
         {
             locker?.Dispose();
             return null;
         }
+
         return locker;
     }
 
@@ -434,8 +464,8 @@ public partial class RedisStoreProvider : IDataStoreProvider
 
         await RedisCallAsync(async redis =>
         {
-            fencingToken = await redis.StringIncrementAsync($"{key}:__fencing__");
-        });
+            fencingToken = await redis.StringIncrementAsync($"{key}:__fencing__").ConfigureAwait(false);
+        }).ConfigureAwait(false);
 
         return fencingToken;
     }

@@ -12,7 +12,7 @@ internal class DataStoreConfigurationSection: ConfigurationSection
         return (DataStoreConfigurationSection)ConfigurationManager.GetSection(ConfigPath);
     }
 
-    [ConfigurationProperty("defaultSerializer", IsRequired = false, IsKey = true)]
+    [ConfigurationProperty("defaultSerializer", IsRequired = false)]
     public string DefaultSerializer
     {
         get
@@ -25,7 +25,20 @@ internal class DataStoreConfigurationSection: ConfigurationSection
         }
     }
 
-    [ConfigurationProperty("connections", IsDefaultCollection = true)]
+    [ConfigurationProperty("defaultConnection", IsRequired = true)]
+    public ConnectionConfigurationElement DefaultConnection
+    {
+        get
+        {
+            return (ConnectionConfigurationElement)this["defaultConnection"];
+        }
+        set
+        {
+            this["defaultConnection"] = value;
+        }
+    }
+
+    [ConfigurationProperty("connections")]
     [ConfigurationCollection(typeof(ConnectionConfigurationCollection),
         AddItemName = "add",
         ClearItemsName = "clear",
@@ -35,19 +48,6 @@ internal class DataStoreConfigurationSection: ConfigurationSection
         get
         {
             return (ConnectionConfigurationCollection)base["connections"];
-        }
-    }
-
-    [ConfigurationProperty("providers", IsRequired = true)]
-    [ConfigurationCollection(typeof(NameValueConfigurationCollection),
-        AddItemName = "add",
-        ClearItemsName = "clear",
-        RemoveItemName = "remove")]
-    public NameValueConfigurationCollection Providers
-    {
-        get
-        {
-            return (NameValueConfigurationCollection)this["providers"];
         }
     }
 }

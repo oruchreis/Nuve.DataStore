@@ -43,7 +43,9 @@ jobs:
         dotnet-version: |
             8.x
     - name: Test .NET Standard
-      run: dotnet test -v normal -f net8.0 --logger "console;verbosity=detailed"
+      env:
+        REDIS_TEST_CONNECTION: localhost:6379,abortConnect=false
+      run: dotnet test -v normal -f net8.0 --logger "console;verbosity=detailed" /p:EnableTestHooks=true
 
   test-net48:
     runs-on: windows-2022
@@ -73,7 +75,9 @@ jobs:
         Start-Service Memurai
         Start-Sleep -Seconds 5
     - name: Test .NET FW 4.8
-      run: dotnet test -v normal -f net48 --logger "console;verbosity=detailed"
+      env:
+        REDIS_TEST_CONNECTION: localhost:6379,abortConnect=false
+      run: dotnet test -v normal -f net48 --logger "console;verbosity=detailed" /p:EnableTestHooks=true
       
   upload-packages:
     needs: [test-net8, test-net48] 

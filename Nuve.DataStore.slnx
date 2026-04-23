@@ -1,0 +1,22 @@
+<Solution>
+  <Folder Name="/Providers/">
+    <Project Path="src/Nuve.DataStore.Redis/Nuve.DataStore.Redis.csproj" />
+  </Folder>
+  <Folder Name="/Serializers/">
+    <Project Path="src/Nuve.DataStore.Serializer.Ceras/Nuve.DataStore.Serializer.Ceras.csproj" />
+    <Project Path="src/Nuve.DataStore.Serializer.JsonNet/Nuve.DataStore.Serializer.JsonNet.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".github/workflows/build.yml" />
+    <File Path=".gitignore" />
+    <File Path="CHANGELOG.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <File Path="test.runsettings" />
+    <Project Path="src/Nuve.DataStore.Test/Nuve.DataStore.Test.csproj" />
+  </Folder>
+  <Project Path="src/Nuve.DataStore/Nuve.DataStore.csproj" />
+</Solution>

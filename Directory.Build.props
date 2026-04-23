@@ -1,17 +1,15 @@
 <Project>
 	<PropertyGroup>
-		<TargetFrameworks>netstandard2.1;net48;net6.0;net7.0;net8.0</TargetFrameworks>
-		<LangVersion>preview</LangVersion>
+		<TargetFrameworks>netstandard2.1;net48;net6.0;net7.0;net8.0;net9.0;net10.0</TargetFrameworks>
+		<LangVersion>14.0</LangVersion>
 		<Nullable>enable</Nullable>
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<EnableTestHooks Condition="'$(EnableTestHooks)' == '' and '$(CI)' != 'true'">true</EnableTestHooks>
+		<EnableTestHooks Condition="'$(EnableTestHooks)' == '' and '$(CI)' == 'true'">false</EnableTestHooks>
 	</PropertyGroup>
-  
-  <ItemGroup>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All"/>
-  </ItemGroup>
 
 	<ItemGroup>
 		<Using Include="System" />
@@ -21,4 +19,9 @@
 		<Using Include="System.Threading"/>
 		<Using Include="System.Threading.Tasks"/>
 	</ItemGroup>
+
+	<Target Name="FailIfTestHooksEnabledInRelease" BeforeTargets="Build">
+		<Error Condition="'$(Configuration)' == 'Release' and '$(EnableTestHooks)' == 'true'"
+			   Text="TEST hooks must be disabled for Release builds." />
+	</Target>
 </Project>

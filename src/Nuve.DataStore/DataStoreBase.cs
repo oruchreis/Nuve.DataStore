@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using Nuve.DataStore.Internal;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 
 namespace Nuve.DataStore;
@@ -8,45 +9,55 @@ namespace Nuve.DataStore;
 /// </summary>
 public abstract class DataStoreBase
 {
-    private readonly IDataStoreSerializer _serializer;
-    private readonly IDataStoreCompressor _compressor;
-    private readonly string _rootNameSpace;
-    protected readonly IDataStoreProvider Provider;
+    private readonly IDataStoreSerializer? _serializerOverride;
+    private readonly IDataStoreCompressor? _compressorOverride;
+    private readonly string? _connectionName;
+    private readonly string? _overrideRootNamespace;
+    private readonly int? _overrideCompressBiggerThan;
+
+    private DataStoreConnectionContext? _context;
+
     internal readonly IDataStoreProfiler? Profiler;
-    private readonly int? _compressBiggerThan;
 
     /// <summary>
     /// Base class for all DataStore structures.
     /// </summary>
-    /// <param name="connectionName">Connection name defined in the config.</param>
+    /// <param name="connectionName">Connection name defined in the configuration or code registration.</param>
     /// <param name="defaultExpire">Default expiration time.</param>
-    /// <param name="autoPing">Should <see cref="Ping"/> be automatically called for each operation?</param>
+    /// <param name="autoPing">Should Ping be automatically called for each operation?</param>
     /// <param name="namespaceSeperator">Separator used to separate namespaces. Default is ":".</param>
     /// <param name="overrideRootNamespace">Used to override the root namespace defined in the connection.</param>
     /// <param name="serializer">Set this if you want to use a different serializer instead of the default one.</param>
-    /// <param name="profiler">Used to profile only the methods of this data store. The global profiler registered in <see cref="DataStoreManager"/> is used whether it is set or not.</param>
-    protected DataStoreBase(string? connectionName = null, TimeSpan? defaultExpire = null, bool autoPing = false,
-        string? namespaceSeperator = null, string? overrideRootNamespace = null,
-        IDataStoreSerializer? serializer = null, IDataStoreCompressor? compressor = null,
+    /// <param name="compressor">Set this if you want to use a different compressor instead of the default one.</param>
+    /// <param name="profiler">Used to profile only the methods of this data store. The global profiler is used whether it is set or not.</param>
+    /// <param name="compressBiggerThan">Overrides the connection compression threshold.</param>
+    protected DataStoreBase(
+        string? connectionName = null,
+        TimeSpan? defaultExpire = null,
+        bool autoPing = false,
+        string? namespaceSeperator = null,
+        string? overrideRootNamespace = null,
+        IDataStoreSerializer? serializer = null,
+        IDataStoreCompressor? compressor = null,
         IDataStoreProfiler? profiler = null,
         int? compressBiggerThan = null)
     {
+        _connectionName = connectionName;
+        _overrideRootNamespace = overrideRootNamespace;
+        _overrideCompressBiggerThan = compressBiggerThan;
+        _serializerOverride = serializer;
+        _compressorOverride = compressor;
+
         DefaultExpire = defaultExpire ?? TimeSpan.Zero;
         AutoPing = autoPing;
         NamespaceSeperator = namespaceSeperator ?? ":";
-        DataStoreManager.GetProvider(connectionName, out Provider, out _rootNameSpace, out int? defaultCompressBiggerThan);
-        if (overrideRootNamespace != null)
-            _rootNameSpace = overrideRootNamespace;
-        _serializer = serializer ?? DataStoreManager.DefaultSerializer;
-        _compressor = compressor ?? DataStoreManager.DefaultCompressor;
         Profiler = profiler;
-        _compressBiggerThan = compressBiggerThan ?? defaultCompressBiggerThan;
     }
 
     /// <summary>
     /// Default expiration time.
     /// </summary>
-    public TimeSpan DefaultExpire { get; private set; }
+    public TimeSpan DefaultExpire { get; }
 
     private volatile bool _autoPing;
     /// <summary>
@@ -64,6 +75,20 @@ public abstract class DataStoreBase
         }
     }
 
+    public string NamespaceSeperator { get; }
+
+    protected IDataStoreSerializer Serializer =>
+        _serializerOverride ?? DataStoreRuntime.Manager.DefaultSerializer;
+
+    protected IDataStoreCompressor Compressor =>
+        _compressorOverride ?? DataStoreRuntime.Manager.DefaultCompressor;
+
+    protected IDataStoreProvider Provider => GetContext().Provider;
+
+    protected string RootNamespace => GetContext().RootNamespace;
+
+    protected int? CompressBiggerThan => GetContext().CompressBiggerThan;
+    
     /// <summary>
     /// Resets the expiration time of a key to the default expiration time.
     /// </summary>
@@ -71,12 +96,12 @@ public abstract class DataStoreBase
     /// <returns>Returns a task that represents the asynchronous operation. The task result is a boolean value indicating whether the expiration time was successfully reset.</returns>
     protected virtual async Task<bool> PingAsync(string key)
     {
-        var defaultExpire = DefaultExpire;
-        if (defaultExpire == TimeSpan.Zero)
-            return await Task.FromResult(false);
+        if (DefaultExpire == TimeSpan.Zero)
+            return await Task.FromResult(false).ConfigureAwait(false);
+
         using (new ProfileScope(this, key))
         {
-            return await Provider.SetExpireAsync(key, defaultExpire);
+            return await Provider.SetExpireAsync(key, DefaultExpire).ConfigureAwait(false);
         }
     }
 
@@ -95,10 +120,6 @@ public abstract class DataStoreBase
             return Provider.SetExpire(key, defaultExpire);
         }
     }
-    /// <summary>
-    /// Separator for the namespace.
-    /// </summary>
-    public string NamespaceSeperator { get; private set; }
 
     /// <summary>
     /// Common point for joining with the root namespace.
@@ -108,9 +129,10 @@ public abstract class DataStoreBase
     [DebuggerStepThrough]
     protected virtual string JoinWithRootNamespace(string path)
     {
-        return string.IsNullOrEmpty(_rootNameSpace)
+        var rootNamespace = RootNamespace;
+        return string.IsNullOrEmpty(rootNamespace)
             ? path
-            : string.Join(NamespaceSeperator, _rootNameSpace, path);
+            : string.Join(NamespaceSeperator, rootNamespace, path);
     }
 
     /// <summary>
@@ -146,44 +168,74 @@ public abstract class DataStoreBase
         return pathsWithValues.ToDictionary(kv => JoinWithRootNamespace(kv.Key), kv => kv.Value);
     }
 
+    private DataStoreConnectionContext GetContext()
+    {
+        var cached = _context;
+        if (cached.HasValue)
+            return cached.Value;
+
+        var context = DataStoreRuntime.Manager.GetConnection(_connectionName);
+
+        if (_overrideRootNamespace != null || _overrideCompressBiggerThan.HasValue)
+        {
+            context = new DataStoreConnectionContext(
+                context.Provider,
+                _overrideRootNamespace ?? context.RootNamespace,
+                _overrideCompressBiggerThan ?? context.CompressBiggerThan);
+        }
+
+        _context = context;
+        return context;
+    }
+
     private byte[] CompressIfNeeded(byte[] uncompressed)
     {
-        if (_compressBiggerThan == null || uncompressed.Length < _compressBiggerThan)
+        var compressBiggerThan = CompressBiggerThan;
+        var compressor = Compressor;
+
+        if (compressBiggerThan == null || uncompressed.Length < compressBiggerThan)
             return uncompressed;
 
-        using var cs = new MemoryStream();
-        cs.Write(_compressor.Signature, 0, _compressor.Signature.Length);
-        _compressor.Compress(cs, uncompressed);
-        return cs.ToArray();
+        using var compressedStream = new MemoryStream();
+        compressedStream.Write(compressor.Signature, 0, compressor.Signature.Length);
+        compressor.Compress(compressedStream, uncompressed);
+        return compressedStream.ToArray();
     }
 
     private byte[] DecompressIfNeeded(byte[] compressed)
     {
         if (compressed == null || compressed.Length == 0)
             return Array.Empty<byte>();
+
+        var compressor = Compressor;
+
 #if NET48
-        for (int i = 0; i < _compressor.Signature.Length; i++)
+        for (int i = 0; i < compressor.Signature.Length; i++)
         {
-            if (compressed[i] != _compressor.Signature[i])
+            if (compressed[i] != compressor.Signature[i])
             {
-                return compressed; //çünkü signature yok ve aslında uncompressed.
+                return compressed;
             }
         }
 
-        var compressedData = new byte[compressed.Length - _compressor.Signature.Length];
-        Array.Copy(compressed, _compressor.Signature.Length, compressedData, 0, compressedData.Length);
+        var compressedData = new byte[compressed.Length - compressor.Signature.Length];
+        Array.Copy(compressed, compressor.Signature.Length, compressedData, 0, compressedData.Length);
 #else
         var compressedSpanWithSignature = compressed.AsSpan();
-        if (compressedSpanWithSignature.Length < _compressor.Signature.Length ||
-            !compressedSpanWithSignature[.._compressor.Signature.Length].SequenceEqual(_compressor.Signature.AsSpan()))
-            return compressed;        
-        var compressedData = compressedSpanWithSignature[_compressor.Signature.Length..].ToArray();
+        if (compressedSpanWithSignature.Length < compressor.Signature.Length ||
+            !compressedSpanWithSignature[..compressor.Signature.Length].SequenceEqual(compressor.Signature.AsSpan()))
+        {
+            return compressed;
+        }
+
+        var compressedData = compressedSpanWithSignature[compressor.Signature.Length..].ToArray();
 #endif
 
         using var uncompressedStream = new MemoryStream();
-        _compressor.Decompress(uncompressedStream, compressedData);
+        compressor.Decompress(uncompressedStream, compressedData);
         return uncompressedStream.ToArray();
     }
+
     /// <summary>
     /// Helper method for deserializing a single value.
     /// </summary>
@@ -193,7 +245,9 @@ public abstract class DataStoreBase
     [DebuggerStepThrough]
     protected T? SingleResult<T>(byte[] result)
     {
-        return result is T sameType ? sameType : _serializer.Deserialize<T>(DecompressIfNeeded(result));
+        return result is T sameType
+            ? sameType
+            : Serializer.Deserialize<T>(DecompressIfNeeded(result));
     }
 
     /// <summary>
@@ -205,7 +259,9 @@ public abstract class DataStoreBase
     [DebuggerStepThrough]
     protected object? SingleResult(byte[] result, Type type)
     {
-        return type == typeof(byte[]) ? result : _serializer.Deserialize(DecompressIfNeeded(result), type);
+        return type == typeof(byte[])
+            ? result
+            : Serializer.Deserialize(DecompressIfNeeded(result), type);
     }
 
     /// <summary>
@@ -223,7 +279,7 @@ public abstract class DataStoreBase
         var dic = new Dictionary<string, T?>();
         foreach (var kv in result)
         {
-            dic[kv.Key] = _serializer.Deserialize<T>(DecompressIfNeeded(kv.Value));
+            dic[kv.Key] = Serializer.Deserialize<T>(DecompressIfNeeded(kv.Value));
         }
         return dic;
     }
@@ -240,7 +296,7 @@ public abstract class DataStoreBase
         var dic = new Dictionary<string, object?>();
         foreach (var kv in result)
         {
-            dic[kv.Key] = types[kv.Key] == typeof(byte[]) ? kv.Value : _serializer.Deserialize(DecompressIfNeeded(kv.Value), types[kv.Key]);
+            dic[kv.Key] = types[kv.Key] == typeof(byte[]) ? kv.Value : Serializer.Deserialize(DecompressIfNeeded(kv.Value), types[kv.Key]);
         }
         return dic;
     }
@@ -260,7 +316,7 @@ public abstract class DataStoreBase
         var list = new List<T?>();
         foreach (var item in result)
         {
-            list.Add(_serializer.Deserialize<T>(DecompressIfNeeded(item)));
+            list.Add(Serializer.Deserialize<T>(DecompressIfNeeded(item)));
         }
         return list;
     }
@@ -280,7 +336,7 @@ public abstract class DataStoreBase
         var hashSet = new HashSet<T?>();
         foreach (var item in result)
         {
-            hashSet.Add(_serializer.Deserialize<T>(DecompressIfNeeded(item)));
+            hashSet.Add(Serializer.Deserialize<T>(DecompressIfNeeded(item)));
         }
         return hashSet;
     }
@@ -298,8 +354,8 @@ public abstract class DataStoreBase
             return sameType;
 
         if (typeof(T) == typeof(object))
-            return CompressIfNeeded(_serializer.Serialize((object?)value));
-        return CompressIfNeeded(_serializer.Serialize(value));
+            return CompressIfNeeded(Serializer.Serialize((object?)value));
+        return CompressIfNeeded(Serializer.Serialize(value));
     }
 
     /// <summary>
