@@ -66,6 +66,144 @@ var value = await _store.GetAsync<string>("key");
 
 ---
 
+## Store Usage Examples
+
+### KeyValueStore
+Simple key-value storage.
+
+```csharp
+var store = new KeyValueStore();
+
+await store.SetAsync("user:1", "John");
+var value = await store.GetAsync<string>("user:1");
+```
+
+**Description:**  
+Stores a single value per key. Suitable for caching, simple data storage, and fast lookups.
+
+---
+
+### DictionaryStore
+Key-based structured storage (similar to a dictionary/map per root key).
+
+```csharp
+var store = new DictionaryStore();
+
+await store.SetAsync("user:1", "name", "John");
+await store.SetAsync("user:1", "age", 30);
+
+var name = await store.GetAsync<string>("user:1", "name");
+```
+
+**Description:**  
+Stores multiple fields under a single key. Useful for grouped data like objects or records.
+
+---
+
+### HashStore
+Optimized structured storage for field-value pairs.
+
+```csharp
+var store = new HashStore();
+
+await store.SetAsync("user:1", "name", "John");
+await store.SetAsync("user:1", "age", 30);
+
+var all = await store.GetAllAsync("user:1");
+```
+
+**Description:**  
+Similar to DictionaryStore but optimized for bulk operations and retrieving all fields at once.
+
+---
+
+### HashSetStore
+Set-based storage (unique values only).
+
+```csharp
+var store = new HashSetStore();
+
+await store.AddAsync("tags", "redis");
+await store.AddAsync("tags", "cache");
+await store.AddAsync("tags", "redis"); // duplicate ignored
+
+var exists = await store.ContainsAsync("tags", "redis");
+```
+
+**Description:**  
+Stores unique values per key. Ideal for tags, categories, or membership checks.
+
+---
+
+### LinkedListStore
+Ordered list storage.
+
+```csharp
+var store = new LinkedListStore();
+
+await store.AddLastAsync("queue", "job1");
+await store.AddLastAsync("queue", "job2");
+
+var first = await store.GetFirstAsync<string>("queue");
+```
+
+**Description:**  
+Maintains insertion order. Useful for queues, logs, or ordered processing scenarios.
+
+---
+
+### Using Named Connections
+
+```csharp
+var cacheStore = new KeyValueStore("cache");
+
+await cacheStore.SetAsync("key", "value");
+```
+
+**Description:**  
+Allows using different logical namespaces or configurations over the same provider.
+
+---
+
+### Distributed Lock
+
+```csharp
+var store = new KeyValueStore();
+
+using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+using var lockItem = store.AcquireLock( //or async AcquireLockAsync
+    "resource-lock",
+    throwWhenTimeout: true,
+    slidingExpire: TimeSpan.FromSeconds(10),
+    waitCancelToken: cts.Token);
+
+if (lockItem is not null)
+{
+    // critical section
+}
+
+//OR
+
+await store.LockAsync(
+    "resource-lock",
+    async () =>
+    {
+        // critical section
+    },
+    throwWhenTimeout: true,
+    slidingExpire: TimeSpan.FromSeconds(10),
+    waitCancelToken: cts.Token);
+);
+
+```
+
+**Description:**  
+Provides a distributed locking mechanism to coordinate access across multiple processes or instances.  
+Supports timeout, sliding expiration, and automatic renewal while the lock is held.
+
+---
+
 ## Multiple Connections
 
 ```csharp
