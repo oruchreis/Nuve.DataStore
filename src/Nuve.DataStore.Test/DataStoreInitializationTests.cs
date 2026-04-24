@@ -204,11 +204,10 @@ public class DataStoreInitializationTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["DataStore:Connections:0:Name"] = "cache",
-                ["DataStore:Connections:0:Provider"] = "Redis",
-                ["DataStore:Connections:0:ConnectionString"] = "config-connection",
-                ["DataStore:Connections:0:RetryCount"] = "7",
-                ["DataStore:Connections:0:RootNamespace"] = "from-config"
+                ["DataStore:Connections:cache:Provider"] = "Redis",
+                ["DataStore:Connections:cache:ConnectionString"] = "config-connection",
+                ["DataStore:Connections:cache:RetryCount"] = "7",
+                ["DataStore:Connections:cache:RootNamespace"] = "from-config"
             })
             .Build();
 

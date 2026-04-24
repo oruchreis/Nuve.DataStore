@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.0.3] - 2026-04-24
+
+### Changed
+- `DataStore:Connections` configuration now uses a name-keyed object instead of an array.
+- Connection configuration can now be partially overridden by later configuration providers without repeating the whole connection object.
+- Named serializer selection remains connection-based and now participates in keyed configuration overrides.
+
+### Added
+- Keyed configuration support for connection overrides in `Microsoft.Extensions.Configuration` based applications.
+
+### Breaking Changes
+- `DataStore:Connections` JSON shape changed from array items with `Name` to an object keyed by connection name.
+
 ## [v2.0.2] - 2026-04-24
 
 ### Changed

@@ -69,11 +69,12 @@ public static class DataStoreServiceCollectionExtensions
         var logger = GetBootstrapLogger(builder.Services);
         var registrationStore = GetOrAddRegistrationStore(builder.Services);
 
-        foreach (var connection in options.Connections)
+        foreach (var connectionEntry in options.Connections)
         {
+            var connection = connectionEntry.Value;
             var connectionName = connection.IsDefault
                 ? DataStoreConstants.DefaultConnectionName
-                : connection.Name;
+                : connectionEntry.Key;
 
             if (string.IsNullOrWhiteSpace(connectionName))
                 continue;

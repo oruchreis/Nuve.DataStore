@@ -2,13 +2,11 @@ namespace Nuve.DataStore.Configuration;
 
 public sealed class DataStoreOptions
 {
-    public List<DataStoreConnectionDefinitionOptions>? Connections { get; set; }
+    public Dictionary<string, DataStoreConnectionDefinitionOptions>? Connections { get; set; }
 }
 
 public sealed class DataStoreConnectionDefinitionOptions
 {
-    public string? Name { get; set; }
-
     public string Provider { get; set; } = default!;
 
     public string? Serializer { get; set; }

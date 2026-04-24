@@ -100,11 +100,10 @@ public class DataStoreRegistrationTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["DataStore:Connections:0:Name"] = "cache",
-                ["DataStore:Connections:0:Provider"] = "Redis",
-                ["DataStore:Connections:0:Serializer"] = "json",
-                ["DataStore:Connections:0:ConnectionString"] = "from-config",
-                ["DataStore:Connections:0:RetryCount"] = "7"
+                ["DataStore:Connections:cache:Provider"] = "Redis",
+                ["DataStore:Connections:cache:Serializer"] = "json",
+                ["DataStore:Connections:cache:ConnectionString"] = "from-config",
+                ["DataStore:Connections:cache:RetryCount"] = "7"
             })
             .Build();
 
@@ -124,5 +123,44 @@ public class DataStoreRegistrationTests
         Assert.AreEqual("from-config", registration.Options.ConnectionString);
         Assert.AreEqual(9, registration.Options.RetryCount);
         Assert.AreEqual("json", registration.SerializerName);
+    }
+
+    [TestMethod]
+    public void Named_Keyed_Configuration_Allows_Partial_Override_From_Later_Provider()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["DataStore:Connections:Default:IsDefault"] = "true",
+                ["DataStore:Connections:Default:Provider"] = "redis",
+                ["DataStore:Connections:Default:Serializer"] = "json",
+                ["DataStore:Connections:Default:ConnectionString"] = "redis.gordios.local:6379,abortConnect=false",
+                ["DataStore:Connections:Default:ConnectionMode"] = "Shared",
+                ["DataStore:Connections:Default:RetryCount"] = "5",
+                ["DataStore:Connections:Default:MaxPoolSize"] = "8",
+                ["DataStore:Connections:Default:PoolWaitTimeout"] = "00:00:02",
+                ["DataStore:Connections:Default:BackgroundProbeMinInterval"] = "00:00:05",
+                ["DataStore:Connections:Default:HealthCheckTimeout"] = "00:00:02",
+                ["DataStore:Connections:Default:SwapDisposeDelay"] = "00:00:05",
+                ["DataStore:Connections:Default:RootNamespace"] = "App"
+            })
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["DataStore:Connections:Default:RootNamespace"] = "Wcf"
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        var builder = services
+            .AddDataStore(configuration)
+            .AddRedisDataStoreProvider("redis");
+
+        var registrationStore = DataStoreServiceCollectionExtensions.GetOrAddRegistrationStore(builder.Services);
+        var registration = registrationStore.Connections.Single(x => x.Name == DataStoreConstants.DefaultConnectionName);
+
+        Assert.AreEqual("redis", registration.ProviderName);
+        Assert.AreEqual("json", registration.SerializerName);
+        Assert.AreEqual("redis.gordios.local:6379,abortConnect=false", registration.Options.ConnectionString);
+        Assert.AreEqual("Wcf", registration.RootNamespace);
     }
 }

@@ -13,9 +13,9 @@ A lightweight, provider-based data store abstraction with explicit startup initi
 ## Installation
 
 ```bash
-dotnet add package Nuve.DataStore --version 2.0.2
-dotnet add package Nuve.DataStore.Redis --version 2.0.2
-dotnet add package Nuve.DataStore.Serializer.JsonNet --version 2.0.2
+dotnet add package Nuve.DataStore --version 2.0.3
+dotnet add package Nuve.DataStore.Redis --version 2.0.3
+dotnet add package Nuve.DataStore.Serializer.JsonNet --version 2.0.3
 ```
 
 ## Quick Start
@@ -82,9 +82,8 @@ builder.Services
 ```json
 {
   "DataStore": {
-    "Connections": [
-      {
-        "Name": "main",
+    "Connections": {
+      "Default": {
         "IsDefault": true,
         "Provider": "Redis",
         "Serializer": "json",
@@ -98,8 +97,7 @@ builder.Services
         "SwapDisposeDelay": "00:00:05",
         "RootNamespace": "app"
       },
-      {
-        "Name": "cache",
+      "cache": {
         "Provider": "Redis",
         "Serializer": "ceras",
         "ConnectionString": "localhost:6379,abortConnect=false",
@@ -107,7 +105,21 @@ builder.Services
         "MaxPoolSize": 16,
         "RootNamespace": "cache"
       }
-    ]
+    }
+  }
+}
+```
+
+Later configuration providers can override only the fields they need:
+
+```json
+{
+  "DataStore": {
+    "Connections": {
+      "Default": {
+        "RootNamespace": "Wcf"
+      }
+    }
   }
 }
 ```
@@ -322,7 +334,7 @@ builder.Services
 - Serializer names are resolved using `StringComparer.OrdinalIgnoreCase`.
 - Each connection owns its own provider initialization and its own connection settings.
 - Each connection can optionally select a named serializer; otherwise the default serializer is used.
-- Configuration is applied first; code registration can replace or mutate it during startup.
+- Configuration is applied first; keyed connection objects can be partially overridden by later configuration providers, and code registration can still replace or mutate them during startup.
 - Duplicate provider names keep the first registration and log a warning.
 - Duplicate connection names are overridden by the last registration.
 - If a connection references an unknown provider, initialization fails immediately.
