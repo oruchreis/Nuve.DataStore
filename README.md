@@ -13,9 +13,9 @@ A lightweight, provider-based data store abstraction with explicit startup initi
 ## Installation
 
 ```bash
-dotnet add package Nuve.DataStore --version 2.0.3
-dotnet add package Nuve.DataStore.Redis --version 2.0.3
-dotnet add package Nuve.DataStore.Serializer.JsonNet --version 2.0.3
+dotnet add package Nuve.DataStore --version 2.0.4
+dotnet add package Nuve.DataStore.Redis --version 2.0.4
+dotnet add package Nuve.DataStore.Serializer.JsonNet --version 2.0.4
 ```
 
 ## Quick Start

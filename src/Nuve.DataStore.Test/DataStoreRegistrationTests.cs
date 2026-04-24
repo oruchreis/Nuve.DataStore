@@ -163,4 +163,32 @@ public class DataStoreRegistrationTests
         Assert.AreEqual("redis.gordios.local:6379,abortConnect=false", registration.Options.ConnectionString);
         Assert.AreEqual("Wcf", registration.RootNamespace);
     }
+
+    [TestMethod]
+    public void AddDataStore_Uses_Registered_IConfiguration_When_Parameter_Is_Not_Provided()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["DataStore:Connections:Default:IsDefault"] = "true",
+                ["DataStore:Connections:Default:Provider"] = "redis",
+                ["DataStore:Connections:Default:ConnectionString"] = "from-services",
+                ["DataStore:Connections:Default:RootNamespace"] = "App"
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+
+        var builder = services
+            .AddDataStore()
+            .AddRedisDataStoreProvider("redis");
+
+        var registrationStore = DataStoreServiceCollectionExtensions.GetOrAddRegistrationStore(builder.Services);
+        var registration = registrationStore.Connections.Single(x => x.Name == DataStoreConstants.DefaultConnectionName);
+
+        Assert.AreEqual("redis", registration.ProviderName);
+        Assert.AreEqual("from-services", registration.Options.ConnectionString);
+        Assert.AreEqual("App", registration.RootNamespace);
+    }
 }

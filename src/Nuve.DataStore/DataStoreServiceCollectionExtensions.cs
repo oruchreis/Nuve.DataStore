@@ -16,6 +16,8 @@ public static class DataStoreServiceCollectionExtensions
     {
         ThrowHelper.ThrowIfNull(services);
 
+        configuration ??= TryGetRegisteredConfiguration(services);
+
         services.TryAddSingleton<IDataStoreSerializer, DefaultSerializer>();
         services.TryAddSingleton<IDataStoreCompressor, DeflateCompressor>();
         services.TryAddSingleton<IDataStoreProfiler, NullDataStoreProfiler>();
@@ -154,6 +156,22 @@ public static class DataStoreServiceCollectionExtensions
     internal static ILogger GetBootstrapLogger(IServiceCollection services)
     {
         return NullLogger.Instance;
+    }
+
+    private static IConfiguration? TryGetRegisteredConfiguration(IServiceCollection services)
+    {
+        for (var i = services.Count - 1; i >= 0; i--)
+        {
+            var descriptor = services[i];
+
+            if (descriptor.ServiceType != typeof(IConfiguration))
+                continue;
+
+            if (descriptor.ImplementationInstance is IConfiguration configurationInstance)
+                return configurationInstance;
+        }
+
+        return null;
     }
 
     private static ConnectionOptions CreateConnectionOptions(DataStoreConnectionDefinitionOptions connection)

@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.0.4] - 2026-04-24
+
+### Added
+- `AddDataStore()` now automatically uses a registered `IConfiguration` when one is already present in `IServiceCollection`.
+
+### Changed
+- Explicit `IConfiguration` parameter is still supported, but no longer required in common ASP.NET Core registration flows.
+
 ## [v2.0.3] - 2026-04-24
 
 ### Changed
