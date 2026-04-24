@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using System;
+using Microsoft.Extensions.DependencyInjection;
 using Nuve.DataStore.Redis;
 using Nuve.DataStore.Serializer.JsonNet;
 
@@ -13,23 +14,28 @@ public static class Bootstrap
         string? connectionString = null)
     {
         var services = new ServiceCollection();
+        var redisConnectionString = connectionString ?? RedisTestHelpers.GetRedisConnectionString();
 
         services
             .AddDataStore()
             .AddDataStoreSerializer<JsonNetDataStoreSerializer>()
-            .AddRedisDataStoreProvider(
-                providerName: providerName,
-                options: new ConnectionOptions
-                {
-                    ConnectionString = connectionString ?? RedisTestHelpers.GetRedisConnectionString(),
-                    ConnectionMode = ConnectionMode.Shared
-                })
+            .AddRedisDataStoreProvider(providerName)
             .AddDefaultConnection(
                 provider: providerName,
+                options: new ConnectionOptions
+                {
+                    ConnectionString = redisConnectionString,
+                    ConnectionMode = ConnectionMode.Shared
+                },
                 rootNamespace: rootNamespace)
             .AddConnection(
                 name: defaultConnectionName,
                 provider: providerName,
+                options: new ConnectionOptions
+                {
+                    ConnectionString = redisConnectionString,
+                    ConnectionMode = ConnectionMode.Shared
+                },
                 rootNamespace: rootNamespace);
 
         return services.BuildServiceProvider();
@@ -45,13 +51,7 @@ public static class Bootstrap
         var builder = services
             .AddDataStore()
             .AddDataStoreSerializer<JsonNetDataStoreSerializer>()
-            .AddRedisDataStoreProvider(
-                providerName: providerName,
-                options: new ConnectionOptions
-                {
-                    ConnectionString = connectionString ?? RedisTestHelpers.GetRedisConnectionString(),
-                    ConnectionMode = ConnectionMode.Shared
-                });
+            .AddRedisDataStoreProvider(providerName);
 
         configure(builder);
 

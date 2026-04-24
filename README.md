@@ -1,6 +1,6 @@
 # Nuve.DataStore
 
-A lightweight, provider-based data store abstraction with DI integration and Redis support.
+A lightweight, provider-based data store abstraction with explicit startup initialization, DI-backed provider registration, and Redis support.
 
 |     |     |
 | --- | --- |
@@ -10,41 +10,39 @@ A lightweight, provider-based data store abstraction with DI integration and Red
 | **DataStore.Serializer.JsonNet** | [![nuget](https://img.shields.io/nuget/v/Nuve.DataStore.Serializer.JsonNet.svg)](https://www.nuget.org/packages/Nuve.DataStore.Serializer.JsonNet/) |
 | **DataStore.Serializer.Ceras** | [![nuget](https://img.shields.io/nuget/v/Nuve.DataStore.Serializer.Ceras.svg)](https://www.nuget.org/packages/Nuve.DataStore.Serializer.Ceras/) |
 
-
 ## Installation
 
 ```bash
-dotnet add package Nuve.DataStore
-dotnet add package Nuve.DataStore.Redis
-dotnet add package Nuve.DataStore.Serializer.JsonNet
+dotnet add package Nuve.DataStore --version 2.0.2
+dotnet add package Nuve.DataStore.Redis --version 2.0.2
+dotnet add package Nuve.DataStore.Serializer.JsonNet --version 2.0.2
 ```
-
----
 
 ## Quick Start
 
-### 1. Register services
+### 1. Register DataStore
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
     .AddDataStore()
-    .AddJsonNetDataStoreSerializer()
-    .AddRedisDataStoreProvider("Redis", new ConnectionOptions
-    {
-        ConnectionString = "localhost:6379"
-    })
+    .AddDataStoreSerializer<JsonNetDataStoreSerializer>()
+    .AddDataStoreSerializer<CerasDataStoreSerializer>("ceras")
+    .AddRedisDataStoreProvider("Redis")
     .AddDefaultConnection(
         provider: "Redis",
+        options: new ConnectionOptions
+        {
+            ConnectionString = "localhost:6379,abortConnect=false",
+            ConnectionMode = ConnectionMode.Shared
+        },
         rootNamespace: "app");
 ```
 
----
-
 ### 2. Initialize DataStore
 
-**This step is required.**
+This step is required and must happen before any store instance is created or used.
 
 ```csharp
 var app = builder.Build();
@@ -54,51 +52,59 @@ await app.Services.InitializeDataStoreAsync();
 // app.Services.InitializeDataStore();
 ```
 
----
-
 ### 3. Use stores
 
 ```csharp
-private static readonly KeyValueStore _store = new();
+var store = new KeyValueStore();
 
-await _store.SetAsync("key", "value");
-var value = await _store.GetAsync<string>("key");
+await store.SetAsync("key", "value");
+var value = await store.GetAsync<string>("key");
 ```
 
----
+## Configuration
 
-## Alternative Configuration
-Startup:
+Providers are registered from code only. Connection settings can come from configuration and then be overridden in code.
+
 ```csharp
 builder.Services
     .AddDataStore(builder.Configuration)
-    .AddRedisDataStoreProvider("Redis");
+    .AddRedisDataStoreProvider("Redis")
+    .AddConnection(
+        name: "cache",
+        provider: "Redis",
+        configure: options =>
+        {
+            options.RetryCount = 10;
+        },
+        rootNamespace: "cache");
 ```
-appsettings.Json:
+
 ```json
 {
   "DataStore": {
-    "Providers": [
+    "Connections": [
       {
-        "Name": "Redis",
-        "ConnectionString": "localhost:6379",
+        "Name": "main",
+        "IsDefault": true,
+        "Provider": "Redis",
+        "Serializer": "json",
+        "ConnectionString": "localhost:6379,abortConnect=false",
         "ConnectionMode": "Shared",
         "RetryCount": 5,
         "MaxPoolSize": 8,
         "PoolWaitTimeout": "00:00:02",
         "BackgroundProbeMinInterval": "00:00:05",
         "HealthCheckTimeout": "00:00:02",
-        "SwapDisposeDelay": "00:00:05"
-      }
-    ],
-    "DefaultConnection": {
-      "Provider": "Redis",
-      "RootNamespace": "app"
-    },
-    "Connections": [
+        "SwapDisposeDelay": "00:00:05",
+        "RootNamespace": "app"
+      },
       {
         "Name": "cache",
         "Provider": "Redis",
+        "Serializer": "ceras",
+        "ConnectionString": "localhost:6379,abortConnect=false",
+        "ConnectionMode": "Pooled",
+        "MaxPoolSize": 16,
         "RootNamespace": "cache"
       }
     ]
@@ -106,14 +112,106 @@ appsettings.Json:
 }
 ```
 
-You can override any of the above settings via code at startup.
+## Code Overrides
 
----
+Use the `ConnectionOptions` overload when you want to replace the connection options completely.
+
+```csharp
+builder.Services
+    .AddDataStore()
+    .AddRedisDataStoreProvider("Redis")
+    .AddConnection(
+        name: "cache",
+        provider: "Redis",
+        options: new ConnectionOptions
+        {
+            ConnectionString = "localhost:6379,abortConnect=false",
+            ConnectionMode = ConnectionMode.Pooled,
+            MaxPoolSize = 16
+        },
+        serializer: "ceras",
+        rootNamespace: "cache");
+```
+
+Use the `Action<ConnectionOptions>` overload when configuration should be the base and code should mutate only selected settings.
+
+```csharp
+builder.Services
+    .AddDataStore(builder.Configuration)
+    .AddRedisDataStoreProvider("Redis")
+    .AddConnection(
+        name: "cache",
+        provider: "Redis",
+        configure: options =>
+        {
+            options.RetryCount = 10;
+            options.MaxPoolSize = 32;
+        },
+        serializer: "ceras");
+```
+
+## Serializers
+
+`AddDataStoreSerializer(...)` without a name sets the default serializer. Named registrations can be selected per connection.
+
+```csharp
+builder.Services
+    .AddDataStore()
+    .AddDataStoreSerializer<JsonNetDataStoreSerializer>()
+    .AddDataStoreSerializer<CerasDataStoreSerializer>("ceras")
+    .AddRedisDataStoreProvider("Redis")
+    .AddDefaultConnection(
+        provider: "Redis",
+        options: new ConnectionOptions
+        {
+            ConnectionString = "localhost:6379,abortConnect=false"
+        })
+    .AddConnection(
+        name: "binary-cache",
+        provider: "Redis",
+        serializer: "ceras",
+        options: new ConnectionOptions
+        {
+            ConnectionString = "localhost:6379,abortConnect=false"
+        });
+```
+
+If a connection does not specify a serializer name, the default serializer is used.
+
+## Multiple Connections
+
+Each connection owns its own connection options and initializes its own provider instance at startup.
+
+```csharp
+builder.Services
+    .AddDataStore()
+    .AddRedisDataStoreProvider("Redis")
+    .AddDefaultConnection(
+        provider: "Redis",
+        options: new ConnectionOptions
+        {
+            ConnectionString = "localhost:6379,abortConnect=false"
+        },
+        rootNamespace: "app")
+    .AddConnection(
+        name: "cache",
+        provider: "Redis",
+        options: new ConnectionOptions
+        {
+            ConnectionString = "localhost:6380,abortConnect=false",
+            ConnectionMode = ConnectionMode.Pooled
+        },
+        rootNamespace: "cache");
+```
+
+```csharp
+var defaultStore = new KeyValueStore();
+var cacheStore = new KeyValueStore("cache");
+```
 
 ## Store Usage Examples
 
 ### KeyValueStore
-Simple key-value storage.
 
 ```csharp
 var store = new KeyValueStore();
@@ -122,13 +220,7 @@ await store.SetAsync("user:1", "John");
 var value = await store.GetAsync<string>("user:1");
 ```
 
-**Description:**  
-Stores a single value per key. Suitable for caching, simple data storage, and fast lookups.
-
----
-
 ### DictionaryStore
-Key-based structured storage (similar to a dictionary/map per root key).
 
 ```csharp
 var store = new DictionaryStore();
@@ -139,13 +231,7 @@ await store.SetAsync("user:1", "age", 30);
 var name = await store.GetAsync<string>("user:1", "name");
 ```
 
-**Description:**  
-Stores multiple fields under a single key. Useful for grouped data like objects or records.
-
----
-
 ### HashStore
-Optimized structured storage for field-value pairs.
 
 ```csharp
 var store = new HashStore();
@@ -156,31 +242,18 @@ await store.SetAsync("user:1", "age", 30);
 var all = await store.GetAllAsync("user:1");
 ```
 
-**Description:**  
-Similar to DictionaryStore but optimized for bulk operations and retrieving all fields at once.
-
----
-
 ### HashSetStore
-Set-based storage (unique values only).
 
 ```csharp
 var store = new HashSetStore();
 
 await store.AddAsync("tags", "redis");
 await store.AddAsync("tags", "cache");
-await store.AddAsync("tags", "redis"); // duplicate ignored
 
 var exists = await store.ContainsAsync("tags", "redis");
 ```
 
-**Description:**  
-Stores unique values per key. Ideal for tags, categories, or membership checks.
-
----
-
 ### LinkedListStore
-Ordered list storage.
 
 ```csharp
 var store = new LinkedListStore();
@@ -191,82 +264,47 @@ await store.AddLastAsync("queue", "job2");
 var first = await store.GetFirstAsync<string>("queue");
 ```
 
-**Description:**  
-Maintains insertion order. Useful for queues, logs, or ordered processing scenarios.
+## Store Construction Notes
 
----
-
-### Using Named Connections
-
-```csharp
-var cacheStore = new KeyValueStore("cache");
-
-await cacheStore.SetAsync("key", "value");
-```
-
-**Description:**  
-Allows using different logical namespaces or configurations over the same provider.
-
----
-
-### Distributed Lock
-
-```csharp
-var store = new KeyValueStore();
-
-using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-
-using var lockItem = store.AcquireLock( //or async AcquireLockAsync
-    "resource-lock",
-    throwWhenTimeout: true,
-    slidingExpire: TimeSpan.FromSeconds(10),
-    waitCancelToken: cts.Token);
-
-if (lockItem is not null)
-{
-    // critical section
-}
-
-//OR
-
-await store.LockAsync(
-    "resource-lock",
-    async () =>
-    {
-        // critical section
-    },
-    throwWhenTimeout: true,
-    slidingExpire: TimeSpan.FromSeconds(10),
-    waitCancelToken: cts.Token);
-);
-
-```
-
-**Description:**  
-Provides a distributed locking mechanism to coordinate access across multiple processes or instances.  
-Supports timeout, sliding expiration, and automatic renewal while the lock is held.
-
----
-
-## Multiple Connections
-
-```csharp
-builder.Services
-    .AddDataStore()
-    .AddRedisDataStoreProvider("Redis", new ConnectionOptions
-    {
-        ConnectionString = "localhost:6379"
-    })
-    .AddDefaultConnection("Redis", rootNamespace: "app")
-    .AddConnection("cache", "Redis", rootNamespace: "cache");
-```
+Store objects are still created with `new` in v2.0.x.
 
 ```csharp
 var defaultStore = new KeyValueStore();
 var cacheStore = new KeyValueStore("cache");
 ```
 
----
+Stores are not resolved from DI yet, but their runtime dependencies come from the initialized `DataStoreManager`.
+
+## Distributed Lock
+
+```csharp
+var store = new KeyValueStore();
+using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+using var lockItem = store.AcquireLock(
+    "resource-lock",
+    waitCancelToken: cts.Token,
+    slidingExpire: TimeSpan.FromSeconds(10),
+    throwWhenTimeout: true);
+
+if (lockItem is not null)
+{
+    // critical section
+}
+```
+
+```csharp
+await store.LockAsync(
+    "resource-lock",
+    waitTimeout: TimeSpan.FromSeconds(5),
+    actionAsync: async () =>
+    {
+        // critical section
+        await Task.CompletedTask;
+    },
+    slidingExpire: TimeSpan.FromSeconds(10),
+    throwWhenTimeout: true);
+```
 
 ## Custom Serializer
 
@@ -276,47 +314,43 @@ builder.Services
     .AddDataStoreSerializer<JsonNetDataStoreSerializer>();
 ```
 
----
-
 ## Important Notes
 
-- `InitializeDataStore()` or `InitializeDataStoreAsync()` **must be called before creating any store instances**
-- Store instances can be created using `new` (DI is not required for stores)
-- Providers are registered via DI and initialized at startup
-- Provider names are **case-insensitive**
-- Each connection represents a logical namespace over the same provider
-- Duplicate provider or connection names will throw exceptions
-- If a connection references an unregistered provider, initialization will fail
-
----
+- `InitializeDataStore()` or `InitializeDataStoreAsync()` must be called before creating or using any store.
+- Store instances can be created with `new`; DI is required for providers, not for stores.
+- Provider names are resolved using `StringComparer.OrdinalIgnoreCase`.
+- Serializer names are resolved using `StringComparer.OrdinalIgnoreCase`.
+- Each connection owns its own provider initialization and its own connection settings.
+- Each connection can optionally select a named serializer; otherwise the default serializer is used.
+- Configuration is applied first; code registration can replace or mutate it during startup.
+- Duplicate provider names keep the first registration and log a warning.
+- Duplicate connection names are overridden by the last registration.
+- If a connection references an unknown provider, initialization fails immediately.
+- Provider initialization is eager at startup initialization time; it is not lazy.
 
 ## Testing
 
-Use `.runsettings` to configure environment variables for tests:
+Tests use the `REDIS_TEST_CONNECTION` environment variable. The repository includes `test.runsettings` for that.
 
 ```xml
 <RunSettings>
   <RunConfiguration>
     <EnvironmentVariables>
-      <DATASTORE_REDIS_CONNECTION>localhost:6379</DATASTORE_REDIS_CONNECTION>
+      <REDIS_TEST_CONNECTION>localhost:6379,abortConnect=false</REDIS_TEST_CONNECTION>
     </EnvironmentVariables>
   </RunConfiguration>
 </RunSettings>
 ```
 
-Run tests:
-
 ```bash
 dotnet test --settings test.runsettings
 ```
 
----
-
 ## Supported Frameworks
 
-- .NET Framework 4.8
 - .NET Standard 2.1
-- .NET 6+
+- .NET Framework 4.8
+- .NET 6
 - .NET 7
 - .NET 8
 - .NET 9

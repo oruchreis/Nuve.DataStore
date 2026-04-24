@@ -1,16 +1,17 @@
-﻿namespace Nuve.DataStore.Configuration;
+namespace Nuve.DataStore.Configuration;
 
 public sealed class DataStoreOptions
 {
-    public List<DataStoreProviderDefinitionOptions>? Providers { get; set; }
-    public DataStoreConnectionDefinitionOptions? DefaultConnection { get; set; }
-
     public List<DataStoreConnectionDefinitionOptions>? Connections { get; set; }
 }
 
-public sealed class DataStoreProviderDefinitionOptions
+public sealed class DataStoreConnectionDefinitionOptions
 {
-    public string Name { get; set; } = default!;
+    public string? Name { get; set; }
+
+    public string Provider { get; set; } = default!;
+
+    public string? Serializer { get; set; }
 
     public string ConnectionString { get; set; } = default!;
 
@@ -27,15 +28,10 @@ public sealed class DataStoreProviderDefinitionOptions
     public TimeSpan HealthCheckTimeout { get; set; } = TimeSpan.FromSeconds(2);
 
     public TimeSpan SwapDisposeDelay { get; set; } = TimeSpan.FromSeconds(5);
-}
-
-public sealed class DataStoreConnectionDefinitionOptions
-{
-    public string? Name { get; set; }
-
-    public string Provider { get; set; } = default!;
 
     public string? RootNamespace { get; set; }
 
     public int? CompressBiggerThan { get; set; }
+
+    public bool IsDefault { get; set; }
 }

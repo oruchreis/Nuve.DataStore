@@ -7,8 +7,7 @@ public static class RedisDataStoreBuilderExtensions
 {
     public static IDataStoreBuilder AddRedisDataStoreProvider(
         this IDataStoreBuilder builder,
-        string providerName = "redis",
-        ConnectionOptions? options = null)
+        string providerName = "redis")
     {
         ThrowHelper.ThrowIfNull(builder);
         ThrowHelper.ThrowIfNullOrWhiteSpace(providerName);
@@ -20,12 +19,10 @@ public static class RedisDataStoreBuilderExtensions
             {
                 Name = providerName,
                 ProviderType = typeof(RedisStoreProvider),
-                Options = options ?? new ConnectionOptions(),
-                HasExplicitOptions = options != null,
                 FromConfiguration = false
             },
             NullLogger.Instance,
-            throwIfAlreadyRegisteredFromCode: true);
+            throwIfAlreadyRegisteredFromCode: false);
 
         return builder;
     }

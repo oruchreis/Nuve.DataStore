@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -28,7 +28,8 @@ public static class DataStoreServiceCollectionExtensions
 
             return new DataStoreManager(
                 serviceProvider,
-                registrationStore.GetFinalProviders(logger),
+                registrationStore.Providers,
+                registrationStore.Serializers,
                 registrationStore.Connections,
                 serviceProvider.GetRequiredService<IDataStoreSerializer>(),
                 serviceProvider.GetRequiredService<IDataStoreCompressor>(),
@@ -41,55 +42,13 @@ public static class DataStoreServiceCollectionExtensions
 
         var builder = new DataStoreBuilder(services);
 
-        RegisterConfigurationProviders(builder, configuration);
         RegisterConfigurationConnections(builder, configuration);
 
 #if NET48
-        RegisterLegacyConfigurationProviders(builder);
         RegisterLegacyConfigurationConnections(builder);
 #endif
 
         return builder;
-    }
-
-    private static void RegisterConfigurationProviders(
-        IDataStoreBuilder builder,
-        IConfiguration? configuration)
-    {
-        if (configuration == null)
-            return;
-
-        var section = configuration.GetSection("DataStore");
-        if (!section.Exists())
-            return;
-
-        var options = section.Get<DataStoreOptions>();
-        if (options?.Providers == null)
-            return;
-
-        var logger = GetBootstrapLogger(builder.Services);
-        var registrationStore = GetOrAddRegistrationStore(builder.Services);
-
-        foreach (var provider in options.Providers)
-        {
-            if (string.IsNullOrWhiteSpace(provider.Name))
-                continue;
-
-            registrationStore.AddOrReplaceProviderOptionsFromConfiguration(
-                provider.Name,
-                new ConnectionOptions
-                {
-                    ConnectionString = provider.ConnectionString,
-                    ConnectionMode = provider.ConnectionMode,
-                    RetryCount = provider.RetryCount,
-                    MaxPoolSize = provider.MaxPoolSize,
-                    PoolWaitTimeout = provider.PoolWaitTimeout,
-                    BackgroundProbeMinInterval = provider.BackgroundProbeMinInterval,
-                    HealthCheckTimeout = provider.HealthCheckTimeout,
-                    SwapDisposeDelay = provider.SwapDisposeDelay
-                },
-                logger);
-        }
     }
 
     private static void RegisterConfigurationConnections(
@@ -104,44 +63,31 @@ public static class DataStoreServiceCollectionExtensions
             return;
 
         var options = section.Get<DataStoreOptions>();
-        if (options == null)
+        if (options?.Connections == null)
             return;
 
         var logger = GetBootstrapLogger(builder.Services);
         var registrationStore = GetOrAddRegistrationStore(builder.Services);
 
-        if (options.DefaultConnection != null)
-        {
-            registrationStore.AddOrReplaceConnection(
-                new DataStoreConnectionRegistration
-                {
-                    Name = DataStoreConstants.DefaultConnectionName,
-                    ProviderName = options.DefaultConnection.Provider,
-                    RootNamespace = options.DefaultConnection.RootNamespace ?? string.Empty,
-                    CompressBiggerThan = options.DefaultConnection.CompressBiggerThan,
-                    IsDefault = true,
-                    FromConfiguration = true
-                },
-                logger,
-                throwIfAlreadyRegisteredFromCode: false);
-        }
-
-        if (options.Connections == null)
-            return;
-
         foreach (var connection in options.Connections)
         {
-            if (string.IsNullOrWhiteSpace(connection.Name))
+            var connectionName = connection.IsDefault
+                ? DataStoreConstants.DefaultConnectionName
+                : connection.Name;
+
+            if (string.IsNullOrWhiteSpace(connectionName))
                 continue;
 
             registrationStore.AddOrReplaceConnection(
                 new DataStoreConnectionRegistration
                 {
-                    Name = connection.Name,
+                    Name = connectionName,
                     ProviderName = connection.Provider,
+                    Options = CreateConnectionOptions(connection),
+                    SerializerName = connection.Serializer,
                     RootNamespace = connection.RootNamespace ?? string.Empty,
                     CompressBiggerThan = connection.CompressBiggerThan,
-                    IsDefault = false,
+                    IsDefault = connection.IsDefault,
                     FromConfiguration = true
                 },
                 logger,
@@ -150,103 +96,34 @@ public static class DataStoreServiceCollectionExtensions
     }
 
 #if NET48
-    private static void RegisterLegacyConfigurationProviders(IDataStoreBuilder builder)
-    {
-        var logger = GetBootstrapLogger(builder.Services);
-        var registrationStore = GetOrAddRegistrationStore(builder.Services);
-
-        var config = DataStoreConfigurationSection.GetConfiguration();
-        if (config?.Providers == null)
-            return;
-
-        foreach (ProviderConfigurationElement provider in config.Providers)
-        {
-            if (string.IsNullOrWhiteSpace(provider.Name))
-                continue;
-
-            var connectionOptions = new ConnectionOptions
-            {
-                ConnectionString = provider.ConnectionString,
-                ConnectionMode = provider.ConnectionMode
-            };
-            if (provider.RetryCount != null)
-            {
-                connectionOptions.RetryCount = provider.RetryCount.Value;
-            }
-
-            if (provider.MaxPoolSize != null)
-            {
-                connectionOptions.MaxPoolSize = provider.MaxPoolSize.Value;
-            }
-
-            if (provider.PoolWaitTimeout != null)
-            {
-                connectionOptions.PoolWaitTimeout = provider.PoolWaitTimeout.Value;
-            }
-
-            if (provider.BackgroundProbeMinInterval != null)
-            {
-                connectionOptions.BackgroundProbeMinInterval = provider.BackgroundProbeMinInterval.Value;
-            }
-
-            if (provider.HealthCheckTimeout != null)
-            {
-                connectionOptions.HealthCheckTimeout = provider.HealthCheckTimeout.Value;
-            }
-
-            if (provider.SwapDisposeDelay != null)
-            {
-                connectionOptions.SwapDisposeDelay = provider.SwapDisposeDelay.Value;
-            }
-
-            registrationStore.AddOrReplaceProviderOptionsFromConfiguration(
-                provider.Name,
-                connectionOptions,
-                logger);
-        }
-    }
-
     private static void RegisterLegacyConfigurationConnections(IDataStoreBuilder builder)
     {
         var logger = GetBootstrapLogger(builder.Services);
         var registrationStore = GetOrAddRegistrationStore(builder.Services);
 
         var config = DataStoreConfigurationSection.GetConfiguration();
-        if (config == null)
-            return;
-
-        if (config.DefaultConnection != null)
-        {
-            registrationStore.AddOrReplaceConnection(
-                new DataStoreConnectionRegistration
-                {
-                    Name = DataStoreConstants.DefaultConnectionName,
-                    ProviderName = config.DefaultConnection.ProviderName,
-                    RootNamespace = config.DefaultConnection.Namespace ?? string.Empty,
-                    CompressBiggerThan = config.DefaultConnection.CompressBiggerThan,
-                    IsDefault = true,
-                    FromConfiguration = true
-                },
-                logger,
-                throwIfAlreadyRegisteredFromCode: false);
-        }
-
-        if (config.Connections == null)
+        if (config?.Connections == null)
             return;
 
         foreach (ConnectionConfigurationElement connection in config.Connections)
         {
-            if (string.IsNullOrWhiteSpace(connection.Name))
+            var connectionName = connection.IsDefault
+                ? DataStoreConstants.DefaultConnectionName
+                : connection.Name;
+
+            if (string.IsNullOrWhiteSpace(connectionName))
                 continue;
 
             registrationStore.AddOrReplaceConnection(
                 new DataStoreConnectionRegistration
                 {
-                    Name = connection.Name,
-                    ProviderName = connection.ProviderName,
+                    Name = connectionName,
+                    ProviderName = connection.Provider,
+                    Options = CreateConnectionOptions(connection),
+                    SerializerName = connection.Serializer,
                     RootNamespace = connection.Namespace ?? string.Empty,
                     CompressBiggerThan = connection.CompressBiggerThan,
-                    IsDefault = false,
+                    IsDefault = connection.IsDefault,
                     FromConfiguration = true
                 },
                 logger,
@@ -277,4 +154,36 @@ public static class DataStoreServiceCollectionExtensions
     {
         return NullLogger.Instance;
     }
+
+    private static ConnectionOptions CreateConnectionOptions(DataStoreConnectionDefinitionOptions connection)
+    {
+        return new ConnectionOptions
+        {
+            ConnectionString = connection.ConnectionString,
+            ConnectionMode = connection.ConnectionMode,
+            RetryCount = connection.RetryCount,
+            MaxPoolSize = connection.MaxPoolSize,
+            PoolWaitTimeout = connection.PoolWaitTimeout,
+            BackgroundProbeMinInterval = connection.BackgroundProbeMinInterval,
+            HealthCheckTimeout = connection.HealthCheckTimeout,
+            SwapDisposeDelay = connection.SwapDisposeDelay
+        };
+    }
+
+#if NET48
+    private static ConnectionOptions CreateConnectionOptions(ConnectionConfigurationElement connection)
+    {
+        return new ConnectionOptions
+        {
+            ConnectionString = connection.ConnectionString,
+            ConnectionMode = connection.ConnectionMode,
+            RetryCount = connection.RetryCount ?? 5,
+            MaxPoolSize = connection.MaxPoolSize ?? 8,
+            PoolWaitTimeout = connection.PoolWaitTimeout ?? TimeSpan.FromSeconds(2),
+            BackgroundProbeMinInterval = connection.BackgroundProbeMinInterval ?? TimeSpan.FromSeconds(5),
+            HealthCheckTimeout = connection.HealthCheckTimeout ?? TimeSpan.FromSeconds(2),
+            SwapDisposeDelay = connection.SwapDisposeDelay ?? TimeSpan.FromSeconds(5)
+        };
+    }
+#endif
 }

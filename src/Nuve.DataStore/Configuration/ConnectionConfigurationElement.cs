@@ -19,7 +19,7 @@ internal class ConnectionConfigurationElement : ConfigurationElement
     }
 
     [ConfigurationProperty("provider", IsRequired = true, IsKey = true)]
-    public string ProviderName
+    public string Provider
     {
         get
         {
@@ -28,6 +28,19 @@ internal class ConnectionConfigurationElement : ConfigurationElement
         set
         {
             this["provider"] = value;
+        }
+    }
+
+    [ConfigurationProperty("serializer", IsRequired = false, IsKey = true)]
+    public string Serializer
+    {
+        get
+        {
+            return (string)this["serializer"];
+        }
+        set
+        {
+            this["serializer"] = value;
         }
     }
 
@@ -75,6 +88,55 @@ internal class ConnectionConfigurationElement : ConfigurationElement
     {
         get => (int?)this["compressBiggerThan"];
         set => this["compressBiggerThan"] = value;
+    }
+
+    [ConfigurationProperty("connectionMode", IsRequired = false, IsKey = true)]
+    public ConnectionMode ConnectionMode
+    {
+        get => (ConnectionMode?)this["connectionMode"] ?? ConnectionMode.Shared;
+        set => this["connectionMode"] = value;
+    }
+
+    [ConfigurationProperty("retryCount", IsRequired = false, IsKey = true)]
+    public int? RetryCount
+    {
+        get => (int?)this["retryCount"];
+        set => this["retryCount"] = value;
+    }
+
+    [ConfigurationProperty("maxPoolSize", IsRequired = false, IsKey = true)]
+    public int? MaxPoolSize
+    {
+        get => (int?)this["maxPoolSize"];
+        set => this["maxPoolSize"] = value;
+    }
+
+    [ConfigurationProperty("poolWaitTimeout", IsRequired = false, IsKey = true)]
+    public TimeSpan? PoolWaitTimeout
+    {
+        get => (TimeSpan?)this["poolWaitTimeout"];
+        set => this["poolWaitTimeout"] = value;
+    }
+
+    [ConfigurationProperty("backgroundProbeMinInterval", IsRequired = false, IsKey = true)]
+    public TimeSpan? BackgroundProbeMinInterval
+    {
+        get => (TimeSpan?)this["backgroundProbeMinInterval"];
+        set => this["backgroundProbeMinInterval"] = value;
+    }
+
+    [ConfigurationProperty("healthCheckTimeout", IsRequired = false, IsKey = true)]
+    public TimeSpan? HealthCheckTimeout
+    {
+        get => (TimeSpan?)this["healthCheckTimeout"];
+        set => this["healthCheckTimeout"] = value;
+    }
+
+    [ConfigurationProperty("swapDisposeDelay", IsRequired = false, IsKey = true)]
+    public TimeSpan? SwapDisposeDelay
+    {
+        get => (TimeSpan?)this["swapDisposeDelay"];
+        set => this["swapDisposeDelay"] = value;
     }
 }
 #endif

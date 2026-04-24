@@ -12,8 +12,8 @@ namespace Nuve.DataStore
         {
             var type = Type.GetType("Newtonsoft.Json.JsonConvert,Newtonsoft.Json", false) ??
                 throw new InvalidOperationException("Couldn't find default serializer. " +
-                                    "Set a default serializer to dataStore/defaultSerializer in the config or " +
-                                    "set the DefaultSerializer property of DataStoreManager once.");
+                                    "Register a default serializer with AddDataStoreSerializer(...) or " +
+                                    "add Newtonsoft.Json to the application.");
 
             _serializeMethod = type.GetMethods() //SerializeObject(Object, Type, JsonSerializerSettings)
                 .Where(m => m.Name == "SerializeObject")

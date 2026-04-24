@@ -7,13 +7,17 @@ internal sealed class DataStoreRegistrationStore
     private readonly Dictionary<string, DataStoreProviderRegistration> _providers =
         new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly Dictionary<string, DataStoreProviderOptionsRegistration> _providerOptionsFromConfiguration =
+    private readonly Dictionary<string, DataStoreSerializerRegistration> _serializers =
         new(StringComparer.OrdinalIgnoreCase);
 
     private readonly Dictionary<string, DataStoreConnectionRegistration> _connections =
         new(StringComparer.OrdinalIgnoreCase);
 
     private string? _defaultConnectionName;
+
+    public IReadOnlyCollection<DataStoreProviderRegistration> Providers => _providers.Values;
+
+    public IReadOnlyCollection<DataStoreSerializerRegistration> Serializers => _serializers.Values;
 
     public IReadOnlyCollection<DataStoreConnectionRegistration> Connections => _connections.Values;
 
@@ -29,10 +33,12 @@ internal sealed class DataStoreRegistrationStore
 
         if (_providers.TryGetValue(registration.Name, out var existing))
         {
-            if (!existing.FromConfiguration && !registration.FromConfiguration && throwIfAlreadyRegisteredFromCode)
+            if (!existing.FromConfiguration && !registration.FromConfiguration)
             {
-                throw new InvalidOperationException(
-                    $"The data store provider '{registration.Name}' has already been registered.");
+                logger.LogWarning(
+                    "The data store provider '{ProviderName}' has already been registered. The existing registration will be kept.",
+                    registration.Name);
+                return;
             }
 
             if (existing.FromConfiguration && !registration.FromConfiguration)
@@ -49,67 +55,6 @@ internal sealed class DataStoreRegistrationStore
         _providers.Add(registration.Name, registration);
     }
 
-    public void AddOrReplaceProviderOptionsFromConfiguration(
-        string providerName,
-        ConnectionOptions options,
-        ILogger logger)
-    {
-        ThrowHelper.ThrowIfNullOrWhiteSpace(providerName);
-        ThrowHelper.ThrowIfNull(options);
-        ThrowHelper.ThrowIfNull(logger);
-
-        if (_providerOptionsFromConfiguration.ContainsKey(providerName))
-        {
-            logger.LogWarning(
-                "The data store provider options for '{ProviderName}' defined in configuration are being overridden by a later configuration entry.",
-                providerName);
-        }
-
-        _providerOptionsFromConfiguration[providerName] = new DataStoreProviderOptionsRegistration
-        {
-            Name = providerName,
-            Options = options,
-            FromConfiguration = true
-        };
-    }
-
-    public IReadOnlyCollection<DataStoreProviderRegistration> GetFinalProviders(ILogger logger)
-    {
-        ThrowHelper.ThrowIfNull(logger);
-
-        var result = new List<DataStoreProviderRegistration>(_providers.Count);
-
-        foreach (var provider in _providers.Values)
-        {
-            var finalOptions = provider.Options;
-
-            if (_providerOptionsFromConfiguration.TryGetValue(provider.Name, out var configOptionsRegistration))
-            {
-                finalOptions = configOptionsRegistration.Options;
-
-                if (provider.HasExplicitOptions)
-                {
-                    logger.LogWarning(
-                        "The data store provider '{ProviderName}' defined in code overrides provider options loaded from configuration.",
-                        provider.Name);
-
-                    finalOptions = provider.Options;
-                }
-            }
-
-            result.Add(new DataStoreProviderRegistration
-            {
-                Name = provider.Name,
-                ProviderType = provider.ProviderType,
-                Options = finalOptions,
-                HasExplicitOptions = provider.HasExplicitOptions,
-                FromConfiguration = provider.FromConfiguration
-            });
-        }
-
-        return result;
-    }
-
     public void AddOrReplaceConnection(
         DataStoreConnectionRegistration registration,
         ILogger logger,
@@ -117,6 +62,10 @@ internal sealed class DataStoreRegistrationStore
     {
         ThrowHelper.ThrowIfNull(registration);
         ThrowHelper.ThrowIfNull(logger);
+
+        ThrowHelper.ThrowIfNull(registration.Options);
+        ThrowHelper.ThrowIfNullOrWhiteSpace(registration.ProviderName);
+        ThrowHelper.ThrowIfNullOrWhiteSpace(registration.Options.ConnectionString);
 
         if (registration.IsDefault)
         {
@@ -154,5 +103,36 @@ internal sealed class DataStoreRegistrationStore
         }
 
         _connections.Add(registration.Name, registration);
+    }
+
+    public void AddSerializer(
+        DataStoreSerializerRegistration registration,
+        ILogger logger)
+    {
+        ThrowHelper.ThrowIfNull(registration);
+        ThrowHelper.ThrowIfNull(logger);
+        ThrowHelper.ThrowIfNullOrWhiteSpace(registration.Name);
+
+        if (_serializers.ContainsKey(registration.Name))
+        {
+            logger.LogWarning(
+                "The data store serializer '{SerializerName}' has already been registered. The existing registration will be kept.",
+                registration.Name);
+            return;
+        }
+
+        _serializers.Add(registration.Name, registration);
+    }
+
+    public bool TryGetConnection(string name, out DataStoreConnectionRegistration registration)
+    {
+        ThrowHelper.ThrowIfNullOrWhiteSpace(name);
+        return _connections.TryGetValue(name, out registration!);
+    }
+
+    public bool TryGetSerializer(string name, out DataStoreSerializerRegistration registration)
+    {
+        ThrowHelper.ThrowIfNullOrWhiteSpace(name);
+        return _serializers.TryGetValue(name, out registration!);
     }
 }

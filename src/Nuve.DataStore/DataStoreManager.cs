@@ -1,12 +1,10 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Nuve.DataStore.Internal;
 
 #if  TEST
-using System.Runtime.CompilerServices;
-
 [assembly: InternalsVisibleTo("Nuve.DataStore.Test")]
 #endif
 
@@ -17,20 +15,17 @@ public sealed class DataStoreManager
     private static readonly object SyncInitializingSentinel = new();
 
     private readonly IServiceProvider _serviceProvider;
-    private readonly IReadOnlyList<DataStoreProviderRegistration> _providerRegistrations;
+    private readonly Dictionary<string, DataStoreProviderRegistration> _providerRegistrations;
+    private readonly Dictionary<string, IDataStoreSerializer> _serializers;
     private readonly Dictionary<string, DataStoreConnectionRegistration> _connections;
     private readonly string? _defaultConnectionName;
 
-    // null                               => not initialized
-    // SyncInitializingSentinel           => sync initialization in progress
-    // Task<Dictionary<string, provider>> => async initialization in progress
-    // Dictionary<string, provider>       => initialized
-    // ExceptionDispatchInfo              => faulted
     private object? _providerState;
 
     internal DataStoreManager(
         IServiceProvider serviceProvider,
         IEnumerable<DataStoreProviderRegistration> providerRegistrations,
+        IEnumerable<DataStoreSerializerRegistration> serializerRegistrations,
         IEnumerable<DataStoreConnectionRegistration> connectionRegistrations,
         IDataStoreSerializer defaultSerializer,
         IDataStoreCompressor defaultCompressor,
@@ -39,6 +34,7 @@ public sealed class DataStoreManager
     {
         ThrowHelper.ThrowIfNull(serviceProvider);
         ThrowHelper.ThrowIfNull(providerRegistrations);
+        ThrowHelper.ThrowIfNull(serializerRegistrations);
         ThrowHelper.ThrowIfNull(connectionRegistrations);
         ThrowHelper.ThrowIfNull(defaultSerializer);
         ThrowHelper.ThrowIfNull(defaultCompressor);
@@ -51,7 +47,17 @@ public sealed class DataStoreManager
         GlobalProfiler = globalProfiler;
         Logger = logger;
 
-        _providerRegistrations = providerRegistrations.ToArray();
+        _providerRegistrations = providerRegistrations.ToDictionary(
+            x => x.Name,
+            x => x,
+            StringComparer.OrdinalIgnoreCase);
+
+        _serializers = serializerRegistrations.ToDictionary(
+            x => x.Name,
+            x => x.SerializerInstance ?? (IDataStoreSerializer)ActivatorUtilities.CreateInstance(
+                serviceProvider,
+                x.SerializerType!),
+            StringComparer.OrdinalIgnoreCase);
 
         var connectionArray = connectionRegistrations.ToArray();
 
@@ -62,10 +68,17 @@ public sealed class DataStoreManager
 
         foreach (var connection in connectionArray)
         {
-            if (_providerRegistrations.All(x => !string.Equals(x.Name, connection.ProviderName, StringComparison.OrdinalIgnoreCase)))
+            if (!_providerRegistrations.ContainsKey(connection.ProviderName))
             {
                 throw new InvalidOperationException(
                     $"The data store connection '{connection.Name}' references provider '{connection.ProviderName}', but no provider with that name has been registered.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(connection.SerializerName) &&
+                !_serializers.ContainsKey(connection.SerializerName))
+            {
+                throw new InvalidOperationException(
+                    $"The data store connection '{connection.Name}' references serializer '{connection.SerializerName}', but no serializer with that name has been registered.");
             }
         }
 
@@ -98,7 +111,8 @@ public sealed class DataStoreManager
         var registration = GetConnectionRegistration(connectionName);
 
         return new DataStoreConnectionContext(
-            providers[registration.ProviderName],
+            providers[registration.Name],
+            GetSerializer(registration),
             registration.RootNamespace,
             registration.CompressBiggerThan);
     }
@@ -196,16 +210,17 @@ public sealed class DataStoreManager
 
     private Dictionary<string, IDataStoreProvider> BuildProvidersSync()
     {
-        var providers = new Dictionary<string, IDataStoreProvider>(StringComparer.OrdinalIgnoreCase);
+        var providers = new Dictionary<string, IDataStoreProvider>(_connections.Count, StringComparer.OrdinalIgnoreCase);
 
-        foreach (var registration in _providerRegistrations)
+        foreach (var connection in _connections.Values)
         {
+            var providerRegistration = _providerRegistrations[connection.ProviderName];
             var provider = (IDataStoreProvider)ActivatorUtilities.CreateInstance(
                 _serviceProvider,
-                registration.ProviderType);
+                providerRegistration.ProviderType);
 
-            provider.Initialize(registration.Options, GlobalProfiler);
-            providers.Add(registration.Name, provider);
+            provider.Initialize(connection.Options, GlobalProfiler);
+            providers.Add(connection.Name, provider);
         }
 
         return providers;
@@ -215,16 +230,17 @@ public sealed class DataStoreManager
     {
         try
         {
-            var providers = new Dictionary<string, IDataStoreProvider>(StringComparer.OrdinalIgnoreCase);
+            var providers = new Dictionary<string, IDataStoreProvider>(_connections.Count, StringComparer.OrdinalIgnoreCase);
 
-            foreach (var registration in _providerRegistrations)
+            foreach (var connection in _connections.Values)
             {
+                var providerRegistration = _providerRegistrations[connection.ProviderName];
                 var provider = (IDataStoreProvider)ActivatorUtilities.CreateInstance(
                     _serviceProvider,
-                    registration.ProviderType);
+                    providerRegistration.ProviderType);
 
-                await provider.InitializeAsync(registration.Options, GlobalProfiler).ConfigureAwait(false);
-                providers.Add(registration.Name, provider);
+                await provider.InitializeAsync(connection.Options, GlobalProfiler).ConfigureAwait(false);
+                providers.Add(connection.Name, provider);
             }
 
             Volatile.Write(ref _providerState, providers);
@@ -248,12 +264,20 @@ public sealed class DataStoreManager
                     "No default data store connection has been configured.");
         }
 
-        if (!_connections.TryGetValue(connectionName, out var registration))
+        if (!_connections.TryGetValue(connectionName!, out var registration))
         {
             throw new InvalidOperationException(
                 $"The data store connection '{connectionName}' could not be found.");
         }
 
         return registration;
+    }
+
+    private IDataStoreSerializer GetSerializer(DataStoreConnectionRegistration registration)
+    {
+        if (string.IsNullOrWhiteSpace(registration.SerializerName))
+            return DefaultSerializer;
+
+        return _serializers[registration.SerializerName];
     }
 }

@@ -6,6 +6,10 @@ internal sealed class DataStoreConnectionRegistration
 
     public string ProviderName { get; init; } = default!;
 
+    public ConnectionOptions Options { get; init; } = default!;
+
+    public string? SerializerName { get; init; }
+
     public string RootNamespace { get; init; } = string.Empty;
 
     public int? CompressBiggerThan { get; init; }

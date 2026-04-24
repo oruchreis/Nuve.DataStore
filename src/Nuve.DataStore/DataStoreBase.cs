@@ -78,7 +78,7 @@ public abstract class DataStoreBase
     public string NamespaceSeperator { get; }
 
     protected IDataStoreSerializer Serializer =>
-        _serializerOverride ?? DataStoreRuntime.Manager.DefaultSerializer;
+        _serializerOverride ?? GetContext().Serializer;
 
     protected IDataStoreCompressor Compressor =>
         _compressorOverride ?? DataStoreRuntime.Manager.DefaultCompressor;
@@ -180,6 +180,7 @@ public abstract class DataStoreBase
         {
             context = new DataStoreConnectionContext(
                 context.Provider,
+                context.Serializer,
                 _overrideRootNamespace ?? context.RootNamespace,
                 _overrideCompressBiggerThan ?? context.CompressBiggerThan);
         }
