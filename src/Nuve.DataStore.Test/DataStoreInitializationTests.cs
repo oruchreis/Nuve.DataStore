@@ -3,6 +3,7 @@ using System.Linq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Nuve.DataStore.Internal;
 using Nuve.DataStore.Redis;
 using Nuve.DataStore.Serializer.JsonNet;
 
@@ -225,12 +226,19 @@ public class DataStoreInitializationTests
             },
             rootNamespace: "from-code");
 
-        var registrationStore = DataStoreServiceCollectionExtensions.GetOrAddRegistrationStore(builder.Services);
-        var registration = registrationStore.Connections.Single(x => x.Name == "cache");
+        using var serviceProvider = services.BuildServiceProvider();
+        var manager = serviceProvider.GetRequiredService<DataStoreManager>();
+        var registration = GetConnectionRegistration(manager, "cache");
 
         Assert.AreEqual("config-connection", registration.Options.ConnectionString);
         Assert.AreEqual(11, registration.Options.RetryCount);
         Assert.AreEqual("from-code", registration.RootNamespace);
+    }
+
+    private static DataStoreConnectionRegistration GetConnectionRegistration(DataStoreManager manager, string name)
+    {
+        var connections = RedisTestHelpers.GetPrivateField<Dictionary<string, DataStoreConnectionRegistration>>(manager, "_connections");
+        return connections[name];
     }
 
     private sealed class SerializerProbeModel

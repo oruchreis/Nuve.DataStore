@@ -13,6 +13,8 @@ internal sealed class DataStoreRegistrationStore
     private readonly Dictionary<string, DataStoreConnectionRegistration> _connections =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly List<DataStoreConnectionRegistration> _connectionMutations = [];
+
     private string? _defaultConnectionName;
 
     public IReadOnlyCollection<DataStoreProviderRegistration> Providers => _providers.Values;
@@ -63,9 +65,13 @@ internal sealed class DataStoreRegistrationStore
         ThrowHelper.ThrowIfNull(registration);
         ThrowHelper.ThrowIfNull(logger);
 
-        ThrowHelper.ThrowIfNull(registration.Options);
         ThrowHelper.ThrowIfNullOrWhiteSpace(registration.ProviderName);
-        ThrowHelper.ThrowIfNullOrWhiteSpace(registration.Options.ConnectionString);
+
+        if (registration.ConfigureOptions == null)
+        {
+            ThrowHelper.ThrowIfNull(registration.Options);
+            ThrowHelper.ThrowIfNullOrWhiteSpace(registration.Options.ConnectionString);
+        }
 
         if (registration.IsDefault)
         {
@@ -99,10 +105,17 @@ internal sealed class DataStoreRegistrationStore
             }
 
             _connections[registration.Name] = registration;
+
+            if (!registration.FromConfiguration)
+                _connectionMutations.Add(registration);
+
             return;
         }
 
         _connections.Add(registration.Name, registration);
+
+        if (!registration.FromConfiguration)
+            _connectionMutations.Add(registration);
     }
 
     public void AddSerializer(
@@ -134,5 +147,97 @@ internal sealed class DataStoreRegistrationStore
     {
         ThrowHelper.ThrowIfNullOrWhiteSpace(name);
         return _serializers.TryGetValue(name, out registration!);
+    }
+
+    public IReadOnlyCollection<DataStoreConnectionRegistration> CreateFinalConnections(
+        IReadOnlyCollection<DataStoreConnectionRegistration> configurationConnections,
+        IReadOnlyCollection<DataStoreConnectionRegistration> legacyConfigurationConnections)
+    {
+        var effectiveConnections = new Dictionary<string, DataStoreConnectionRegistration>(StringComparer.OrdinalIgnoreCase);
+
+        MergeConnections(effectiveConnections, legacyConfigurationConnections);
+        MergeConnections(effectiveConnections, configurationConnections);
+
+        foreach (var registration in _connectionMutations)
+        {
+            effectiveConnections[registration.Name] = registration.ConfigureOptions == null
+                ? CreateReplacedConnection(registration)
+                : CreateMergedConnection(
+                    effectiveConnections.TryGetValue(registration.Name, out var existingRegistration)
+                        ? existingRegistration
+                        : null,
+                    registration);
+        }
+
+        foreach (var registration in effectiveConnections.Values)
+        {
+            ThrowHelper.ThrowIfNull(registration.Options);
+            ThrowHelper.ThrowIfNullOrWhiteSpace(registration.ProviderName);
+            ThrowHelper.ThrowIfNullOrWhiteSpace(registration.Options.ConnectionString);
+        }
+
+        return effectiveConnections.Values.ToArray();
+    }
+
+    private static void MergeConnections(
+        Dictionary<string, DataStoreConnectionRegistration> destination,
+        IEnumerable<DataStoreConnectionRegistration> source)
+    {
+        foreach (var registration in source)
+            destination[registration.Name] = registration;
+    }
+
+    private static DataStoreConnectionRegistration CreateReplacedConnection(
+        DataStoreConnectionRegistration registration)
+    {
+        return new DataStoreConnectionRegistration
+        {
+            Name = registration.Name,
+            ProviderName = registration.ProviderName,
+            Options = CloneConnectionOptions(registration.Options),
+            SerializerName = registration.SerializerName,
+            RootNamespace = registration.RootNamespace ?? string.Empty,
+            CompressBiggerThan = registration.CompressBiggerThan,
+            IsDefault = registration.IsDefault,
+            FromConfiguration = false
+        };
+    }
+
+    private static DataStoreConnectionRegistration CreateMergedConnection(
+        DataStoreConnectionRegistration? existingRegistration,
+        DataStoreConnectionRegistration registration)
+    {
+        var options = existingRegistration != null
+            ? CloneConnectionOptions(existingRegistration.Options)
+            : new ConnectionOptions();
+
+        registration.ConfigureOptions!(options);
+
+        return new DataStoreConnectionRegistration
+        {
+            Name = registration.Name,
+            ProviderName = registration.ProviderName,
+            Options = options,
+            SerializerName = registration.SerializerName ?? existingRegistration?.SerializerName,
+            RootNamespace = registration.RootNamespace ?? existingRegistration?.RootNamespace ?? string.Empty,
+            CompressBiggerThan = registration.CompressBiggerThan ?? existingRegistration?.CompressBiggerThan,
+            IsDefault = registration.IsDefault,
+            FromConfiguration = false
+        };
+    }
+
+    private static ConnectionOptions CloneConnectionOptions(ConnectionOptions options)
+    {
+        return new ConnectionOptions
+        {
+            ConnectionString = options.ConnectionString,
+            ConnectionMode = options.ConnectionMode,
+            RetryCount = options.RetryCount,
+            MaxPoolSize = options.MaxPoolSize,
+            PoolWaitTimeout = options.PoolWaitTimeout,
+            BackgroundProbeMinInterval = options.BackgroundProbeMinInterval,
+            HealthCheckTimeout = options.HealthCheckTimeout,
+            SwapDisposeDelay = options.SwapDisposeDelay
+        };
     }
 }

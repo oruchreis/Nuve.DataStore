@@ -96,21 +96,17 @@ public static class DataStoreBuilderExtensions
 
         var registrationStore = DataStoreServiceCollectionExtensions.GetOrAddRegistrationStore(builder.Services);
         var normalizedName = isDefault ? DataStoreConstants.DefaultConnectionName : name;
-        var options = registrationStore.TryGetConnection(normalizedName, out var existingRegistration)
-            ? CloneConnectionOptions(existingRegistration.Options)
-            : new ConnectionOptions();
-
-        configure(options);
 
         registrationStore.AddOrReplaceConnection(
             new DataStoreConnectionRegistration
             {
                 Name = normalizedName,
                 ProviderName = provider,
-                Options = options,
-                SerializerName = serializer ?? existingRegistration?.SerializerName,
-                RootNamespace = rootNamespace ?? existingRegistration?.RootNamespace ?? string.Empty,
-                CompressBiggerThan = compressBiggerThan ?? existingRegistration?.CompressBiggerThan,
+                Options = new ConnectionOptions(),
+                ConfigureOptions = configure,
+                SerializerName = serializer,
+                RootNamespace = rootNamespace,
+                CompressBiggerThan = compressBiggerThan,
                 IsDefault = isDefault,
                 FromConfiguration = false
             },

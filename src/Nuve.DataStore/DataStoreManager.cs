@@ -113,7 +113,7 @@ public sealed class DataStoreManager
         return new DataStoreConnectionContext(
             providers[registration.Name],
             GetSerializer(registration),
-            registration.RootNamespace,
+            registration.RootNamespace ?? string.Empty,
             registration.CompressBiggerThan);
     }
 

@@ -3,7 +3,9 @@ using System.Linq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Nuve.DataStore.Internal;
 using Nuve.DataStore.Redis;
+using Nuve.DataStore.Serializer.JsonNet;
 
 namespace Nuve.DataStore.Test;
 
@@ -110,6 +112,7 @@ public class DataStoreRegistrationTests
         var services = new ServiceCollection();
         var builder = services
             .AddDataStore(configuration)
+            .AddDataStoreSerializer<JsonNetDataStoreSerializer>("json")
             .AddRedisDataStoreProvider("Redis");
 
         builder.AddConnection(
@@ -117,8 +120,9 @@ public class DataStoreRegistrationTests
             provider: "Redis",
             configure: options => options.RetryCount = 9);
 
-        var registrationStore = DataStoreServiceCollectionExtensions.GetOrAddRegistrationStore(builder.Services);
-        var registration = registrationStore.Connections.Single(x => x.Name == "cache");
+        using var serviceProvider = services.BuildServiceProvider();
+        var manager = serviceProvider.GetRequiredService<DataStoreManager>();
+        var registration = GetConnectionRegistration(manager, "cache");
 
         Assert.AreEqual("from-config", registration.Options.ConnectionString);
         Assert.AreEqual(9, registration.Options.RetryCount);
@@ -153,10 +157,12 @@ public class DataStoreRegistrationTests
         var services = new ServiceCollection();
         var builder = services
             .AddDataStore(configuration)
+            .AddDataStoreSerializer<JsonNetDataStoreSerializer>("json")
             .AddRedisDataStoreProvider("redis");
 
-        var registrationStore = DataStoreServiceCollectionExtensions.GetOrAddRegistrationStore(builder.Services);
-        var registration = registrationStore.Connections.Single(x => x.Name == DataStoreConstants.DefaultConnectionName);
+        using var serviceProvider = services.BuildServiceProvider();
+        var manager = serviceProvider.GetRequiredService<DataStoreManager>();
+        var registration = GetConnectionRegistration(manager, DataStoreConstants.DefaultConnectionName);
 
         Assert.AreEqual("redis", registration.ProviderName);
         Assert.AreEqual("json", registration.SerializerName);
@@ -184,11 +190,18 @@ public class DataStoreRegistrationTests
             .AddDataStore()
             .AddRedisDataStoreProvider("redis");
 
-        var registrationStore = DataStoreServiceCollectionExtensions.GetOrAddRegistrationStore(builder.Services);
-        var registration = registrationStore.Connections.Single(x => x.Name == DataStoreConstants.DefaultConnectionName);
+        using var serviceProvider = services.BuildServiceProvider();
+        var manager = serviceProvider.GetRequiredService<DataStoreManager>();
+        var registration = GetConnectionRegistration(manager, DataStoreConstants.DefaultConnectionName);
 
         Assert.AreEqual("redis", registration.ProviderName);
         Assert.AreEqual("from-services", registration.Options.ConnectionString);
         Assert.AreEqual("App", registration.RootNamespace);
+    }
+
+    private static DataStoreConnectionRegistration GetConnectionRegistration(DataStoreManager manager, string name)
+    {
+        var connections = RedisTestHelpers.GetPrivateField<Dictionary<string, DataStoreConnectionRegistration>>(manager, "_connections");
+        return connections[name];
     }
 }

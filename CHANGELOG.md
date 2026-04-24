@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.0.5] - 2026-04-24
+
+### Added
+- `AddDataStore()` now automatically uses a registered `IConfiguration` when one is available from the built `IServiceProvider`.
+
+### Changed
+- Configuration finalization moved from `AddDataStore()` registration time to `DataStoreManager` creation time.
+- Explicit `IConfiguration` parameter is still supported and takes precedence over `IServiceProvider` resolution.
+
 ## [v2.0.4] - 2026-04-24
 
 ### Added

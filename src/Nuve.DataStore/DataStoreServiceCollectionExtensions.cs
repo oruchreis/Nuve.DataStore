@@ -16,8 +16,6 @@ public static class DataStoreServiceCollectionExtensions
     {
         ThrowHelper.ThrowIfNull(services);
 
-        configuration ??= TryGetRegisteredConfiguration(services);
-
         services.TryAddSingleton<IDataStoreSerializer, DefaultSerializer>();
         services.TryAddSingleton<IDataStoreCompressor, DeflateCompressor>();
         services.TryAddSingleton<IDataStoreProfiler, NullDataStoreProfiler>();
@@ -27,12 +25,16 @@ public static class DataStoreServiceCollectionExtensions
         services.TryAddSingleton<DataStoreManager>(serviceProvider =>
         {
             var logger = serviceProvider.GetRequiredService<ILogger<DataStoreManager>>();
+            var resolvedConfiguration = configuration ?? serviceProvider.GetService<IConfiguration>();
+            var finalizedConnections = registrationStore.CreateFinalConnections(
+                BuildConfigurationConnections(resolvedConfiguration),
+                BuildLegacyConfigurationConnections());
 
             return new DataStoreManager(
                 serviceProvider,
                 registrationStore.Providers,
                 registrationStore.Serializers,
-                registrationStore.Connections,
+                finalizedConnections,
                 serviceProvider.GetRequiredService<IDataStoreSerializer>(),
                 serviceProvider.GetRequiredService<IDataStoreCompressor>(),
                 serviceProvider.GetRequiredService<IDataStoreProfiler>(),
@@ -42,34 +44,24 @@ public static class DataStoreServiceCollectionExtensions
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton(typeof(ILogger<>), typeof(NullLogger<>)));
 
-        var builder = new DataStoreBuilder(services);
-
-        RegisterConfigurationConnections(builder, configuration);
-
-#if NET48
-        RegisterLegacyConfigurationConnections(builder);
-#endif
-
-        return builder;
+        return new DataStoreBuilder(services);
     }
 
-    private static void RegisterConfigurationConnections(
-        IDataStoreBuilder builder,
+    private static IReadOnlyCollection<DataStoreConnectionRegistration> BuildConfigurationConnections(
         IConfiguration? configuration)
     {
         if (configuration == null)
-            return;
+            return Array.Empty<DataStoreConnectionRegistration>();
 
         var section = configuration.GetSection("DataStore");
         if (!section.Exists())
-            return;
+            return Array.Empty<DataStoreConnectionRegistration>();
 
         var options = section.Get<DataStoreOptions>();
         if (options?.Connections == null)
-            return;
+            return Array.Empty<DataStoreConnectionRegistration>();
 
-        var logger = GetBootstrapLogger(builder.Services);
-        var registrationStore = GetOrAddRegistrationStore(builder.Services);
+        var registrations = new List<DataStoreConnectionRegistration>(options.Connections.Count);
 
         foreach (var connectionEntry in options.Connections)
         {
@@ -81,32 +73,30 @@ public static class DataStoreServiceCollectionExtensions
             if (string.IsNullOrWhiteSpace(connectionName))
                 continue;
 
-            registrationStore.AddOrReplaceConnection(
-                new DataStoreConnectionRegistration
-                {
-                    Name = connectionName,
-                    ProviderName = connection.Provider,
-                    Options = CreateConnectionOptions(connection),
-                    SerializerName = connection.Serializer,
-                    RootNamespace = connection.RootNamespace ?? string.Empty,
-                    CompressBiggerThan = connection.CompressBiggerThan,
-                    IsDefault = connection.IsDefault,
-                    FromConfiguration = true
-                },
-                logger,
-                throwIfAlreadyRegisteredFromCode: false);
+            registrations.Add(new DataStoreConnectionRegistration
+            {
+                Name = connectionName,
+                ProviderName = connection.Provider,
+                Options = CreateConnectionOptions(connection),
+                SerializerName = connection.Serializer,
+                RootNamespace = connection.RootNamespace ?? string.Empty,
+                CompressBiggerThan = connection.CompressBiggerThan,
+                IsDefault = connection.IsDefault,
+                FromConfiguration = true
+            });
         }
+
+        return registrations;
     }
 
 #if NET48
-    private static void RegisterLegacyConfigurationConnections(IDataStoreBuilder builder)
+    private static IReadOnlyCollection<DataStoreConnectionRegistration> BuildLegacyConfigurationConnections()
     {
-        var logger = GetBootstrapLogger(builder.Services);
-        var registrationStore = GetOrAddRegistrationStore(builder.Services);
-
         var config = DataStoreConfigurationSection.GetConfiguration();
         if (config?.Connections == null)
-            return;
+            return Array.Empty<DataStoreConnectionRegistration>();
+
+        var registrations = new List<DataStoreConnectionRegistration>();
 
         foreach (ConnectionConfigurationElement connection in config.Connections)
         {
@@ -117,21 +107,25 @@ public static class DataStoreServiceCollectionExtensions
             if (string.IsNullOrWhiteSpace(connectionName))
                 continue;
 
-            registrationStore.AddOrReplaceConnection(
-                new DataStoreConnectionRegistration
-                {
-                    Name = connectionName,
-                    ProviderName = connection.Provider,
-                    Options = CreateConnectionOptions(connection),
-                    SerializerName = connection.Serializer,
-                    RootNamespace = connection.Namespace ?? string.Empty,
-                    CompressBiggerThan = connection.CompressBiggerThan,
-                    IsDefault = connection.IsDefault,
-                    FromConfiguration = true
-                },
-                logger,
-                throwIfAlreadyRegisteredFromCode: false);
+            registrations.Add(new DataStoreConnectionRegistration
+            {
+                Name = connectionName,
+                ProviderName = connection.Provider,
+                Options = CreateConnectionOptions(connection),
+                SerializerName = connection.Serializer,
+                RootNamespace = connection.Namespace ?? string.Empty,
+                CompressBiggerThan = connection.CompressBiggerThan,
+                IsDefault = connection.IsDefault,
+                FromConfiguration = true
+            });
         }
+
+        return registrations;
+    }
+#else
+    private static IReadOnlyCollection<DataStoreConnectionRegistration> BuildLegacyConfigurationConnections()
+    {
+        return Array.Empty<DataStoreConnectionRegistration>();
     }
 #endif
 
@@ -156,22 +150,6 @@ public static class DataStoreServiceCollectionExtensions
     internal static ILogger GetBootstrapLogger(IServiceCollection services)
     {
         return NullLogger.Instance;
-    }
-
-    private static IConfiguration? TryGetRegisteredConfiguration(IServiceCollection services)
-    {
-        for (var i = services.Count - 1; i >= 0; i--)
-        {
-            var descriptor = services[i];
-
-            if (descriptor.ServiceType != typeof(IConfiguration))
-                continue;
-
-            if (descriptor.ImplementationInstance is IConfiguration configurationInstance)
-                return configurationInstance;
-        }
-
-        return null;
     }
 
     private static ConnectionOptions CreateConnectionOptions(DataStoreConnectionDefinitionOptions connection)

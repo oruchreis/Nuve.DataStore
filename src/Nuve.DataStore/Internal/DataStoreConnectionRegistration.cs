@@ -8,9 +8,11 @@ internal sealed class DataStoreConnectionRegistration
 
     public ConnectionOptions Options { get; init; } = default!;
 
+    public Action<ConnectionOptions>? ConfigureOptions { get; init; }
+
     public string? SerializerName { get; init; }
 
-    public string RootNamespace { get; init; } = string.Empty;
+    public string? RootNamespace { get; init; }
 
     public int? CompressBiggerThan { get; init; }
 
