@@ -118,7 +118,8 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     {
         using (new ProfileScope(this, MasterKey))
         {
-            return await CheckAutoPing(async () => await _hashSetStoreProvider.AddAsync(MasterKey, AsValues(values)));
+            var result = await CheckAutoPing(async () => await _hashSetStoreProvider.AddAsync(MasterKey, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire, AsValues(values)));
+            return result;
         }
     }
 
@@ -131,7 +132,8 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     {
         using (new ProfileScope(this, MasterKey))
         {
-            return CheckAutoPing(() => _hashSetStoreProvider.Add(MasterKey, AsValues(values)));
+            var result = CheckAutoPing(() => _hashSetStoreProvider.Add(MasterKey, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire, AsValues(values)));
+            return result;
         }
     }
 
@@ -173,7 +175,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
                 //todo: lock
                 var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
 
-                await _hashSetStoreProvider.AddAsync(tempKey, AsValues(values));
+                await _hashSetStoreProvider.AddAsync(tempKey, null, AsValues(values));
                 var result = await DifferenceToNewSetAsync(MasterKey, tempKey);
                 await Provider.RemoveAsync(tempKey);
                 return result;
@@ -195,7 +197,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
                 //todo: lock
                 var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
 
-                _hashSetStoreProvider.Add(tempKey, AsValues(values));
+                _hashSetStoreProvider.Add(tempKey, null, AsValues(values));
                 var result = DifferenceToNewSet(MasterKey, tempKey);
                 Provider.Remove(tempKey);
                 return result;
@@ -217,7 +219,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
                               //todo: lock
                               var tempKey1 = $"{MasterKey}__temp_{Guid.NewGuid()}_1";
                               var tempKey2 = $"{MasterKey}__temp_{Guid.NewGuid()}_2";
-                              await _hashSetStoreProvider.AddAsync(tempKey1, AsValues(values));
+                              await _hashSetStoreProvider.AddAsync(tempKey1, null, AsValues(values));
                               //simetrik olduğu için ilk önce sağ tarafın yani tempe göre farkı alalım ve saklayalım.
                               await _hashSetStoreProvider.DifferenceToNewSetAsync(tempKey1, tempKey2, MasterKey);
                               //mevcut set'e farkını alalım ve saklayalım.
@@ -245,7 +247,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
                               //todo: lock
                               var tempKey1 = $"{MasterKey}__temp_{Guid.NewGuid()}_1";
                               var tempKey2 = $"{MasterKey}__temp_{Guid.NewGuid()}_2";
-                              _hashSetStoreProvider.Add(tempKey1, AsValues(values));
+                              _hashSetStoreProvider.Add(tempKey1, null, AsValues(values));
                               //simetrik olduğu için ilk önce sağ tarafın yani tempe göre farkı alalım ve saklayalım.
                               _hashSetStoreProvider.DifferenceToNewSet(tempKey1, tempKey2, MasterKey);
                               //mevcut set'e farkını alalım ve saklayalım.
@@ -326,7 +328,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
                                        {
                                            //todo: lock
                                            var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
-                                           await _hashSetStoreProvider.AddAsync(tempKey, AsValues(values));
+                                           await _hashSetStoreProvider.AddAsync(tempKey, null, AsValues(values));
                                            var result = await IntersectToNewSetAsync(MasterKey, MasterKey, tempKey);
                                            await Provider.RemoveAsync(tempKey);
                                            return result;
@@ -347,7 +349,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
                           {
                               //todo: lock
                               var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
-                              _hashSetStoreProvider.Add(tempKey, AsValues(values));
+                              _hashSetStoreProvider.Add(tempKey, null, AsValues(values));
                               var result = IntersectToNewSet(MasterKey, MasterKey, tempKey);
                               Provider.Remove(tempKey);
                               return result;
@@ -681,7 +683,10 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     {
         using (new ProfileScope(this, MasterKey))
         {
-            return await CheckAutoPing(async () => await _hashSetStoreProvider.MoveValueAsync(MasterKey, destinationHashSetKey, AsValue(value)));
+            var result = await CheckAutoPing(async () => await _hashSetStoreProvider.MoveValueAsync(MasterKey, destinationHashSetKey, AsValue(value)));
+            if (result && DefaultExpire != TimeSpan.Zero)
+                await PingAsync();
+            return result;
         }
     }
 
@@ -695,7 +700,10 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     {
         using (new ProfileScope(this, MasterKey))
         {
-            return CheckAutoPing(() => _hashSetStoreProvider.MoveValue(MasterKey, destinationHashSetKey, AsValue(value)));
+            var result = CheckAutoPing(() => _hashSetStoreProvider.MoveValue(MasterKey, destinationHashSetKey, AsValue(value)));
+            if (result && DefaultExpire != TimeSpan.Zero)
+                Ping();
+            return result;
         }
     }
 
@@ -708,7 +716,10 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     {
         using (new ProfileScope(this, MasterKey))
         {
-            return await CheckAutoPing(async () => await _hashSetStoreProvider.RemoveAsync(MasterKey, AsValues(values)));
+            var result = await CheckAutoPing(async () => await _hashSetStoreProvider.RemoveAsync(MasterKey, AsValues(values)));
+            if (result > 0 && DefaultExpire != TimeSpan.Zero)
+                await PingAsync();
+            return result;
         }
     }
 
@@ -721,7 +732,10 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     {
         using (new ProfileScope(this, MasterKey))
         {
-            return CheckAutoPing(() => _hashSetStoreProvider.Remove(MasterKey, AsValues(values)));
+            var result = CheckAutoPing(() => _hashSetStoreProvider.Remove(MasterKey, AsValues(values)));
+            if (result > 0 && DefaultExpire != TimeSpan.Zero)
+                Ping();
+            return result;
         }
     }
 
@@ -762,7 +776,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
         var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
         using (new ProfileScope(this, lockKey))
         {
-            Provider.Lock(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
+            Provider.Lock(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout, BuildFencingKey(key));
         }
     }
 
@@ -783,7 +797,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
         var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
         using (new ProfileScope(this, lockKey))
         {
-            return Provider.AcquireLock(lockKey, waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout);
+            return Provider.AcquireLock(lockKey, waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout, BuildFencingKey(key));
         }
     }
 
@@ -821,7 +835,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
         var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
         using (new ProfileScope(this, lockKey))
         {
-            return await Provider.AcquireLockAsync(lockKey, waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout);
+            return await Provider.AcquireLockAsync(lockKey, waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout, BuildFencingKey(key));
         }
     }
 

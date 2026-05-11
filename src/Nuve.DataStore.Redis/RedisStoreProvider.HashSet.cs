@@ -24,19 +24,25 @@ namespace Nuve.DataStore.Redis
             });
         }
 
-        long IHashSetStoreProvider.Add(string hashSetKey, params byte[][] values)
+        long IHashSetStoreProvider.Add(string hashSetKey, TimeSpan? expire, params byte[][] values)
         {
             return RedisCall(Db =>
             {
+                if (expire != null)
+                    return ExecuteTransaction(Db, tran => tran.SetAddAsync(hashSetKey, values.Select(item => (RedisValue)item).ToArray()), hashSetKey, expire);
+
                 return Db.SetAdd(hashSetKey, values.Select(item => (RedisValue)item).ToArray());
             });
         }
 
-        async Task<long> IHashSetStoreProvider.AddAsync(string hashSetKey, params byte[][] values)
+        async Task<long> IHashSetStoreProvider.AddAsync(string hashSetKey, TimeSpan? expire, params byte[][] values)
         {
             return await RedisCallAsync(async Db =>
             {
-                return await Db.SetAddAsync(hashSetKey, values.Select(item => (RedisValue)item).ToArray());
+                if (expire != null)
+                    return await ExecuteTransactionAsync(Db, tran => tran.SetAddAsync(hashSetKey, values.Select(item => (RedisValue)item).ToArray()), hashSetKey, expire).ConfigureAwait(false);
+
+                return await Db.SetAddAsync(hashSetKey, values.Select(item => (RedisValue)item).ToArray()).ConfigureAwait(false);
             });
         }
 

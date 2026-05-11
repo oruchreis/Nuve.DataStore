@@ -168,6 +168,12 @@ public abstract class DataStoreBase
         return pathsWithValues.ToDictionary(kv => JoinWithRootNamespace(kv.Key), kv => kv.Value);
     }
 
+    [DebuggerStepThrough]
+    protected virtual string BuildFencingKey(string logicalLockKey)
+    {
+        return JoinWithRootNamespace($"__fencing__{NamespaceSeperator}{TypeName}{NamespaceSeperator}{logicalLockKey}");
+    }
+
     private DataStoreConnectionContext GetContext()
     {
         var cached = _context;

@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.0.6] - 2026-05-11
+
+### Fixed
+- `HashStore` write operations now apply `DefaultExpire` deterministically instead of relying on best-effort `autoPing`.
+- `DictionaryStore` write operations now apply `DefaultExpire` deterministically instead of relying on best-effort `autoPing`.
+- `HashSetStore` mutation operations now apply `DefaultExpire` deterministically instead of relying on best-effort `autoPing`.
+- `LinkedListStore` mutation operations now apply `DefaultExpire` deterministically instead of relying on best-effort `autoPing`.
+- `KeyValueStore.Set` and selected `DictionaryStore`, `HashStore`, `HashSetStore`, and `LinkedListStore` write paths now attach `DefaultExpire` through provider-side atomic Redis operations where supported.
+- Fencing token counters are now separated from transient physical lock keys when locks are acquired through store APIs, preventing unbounded `__fencing__` key growth for context-based lock keys.
+
+### Added
+- Integration tests covering default TTL application for `HashStore`, `DictionaryStore`, `HashSetStore`, and `LinkedListStore`.
+
 ## [v2.0.5] - 2026-04-24
 
 ### Added

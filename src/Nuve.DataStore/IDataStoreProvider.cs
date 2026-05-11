@@ -96,7 +96,7 @@ namespace Nuve.DataStore
         /// proceed based on the value of throwWhenTimeout. The default is true.</param>
         /// <param name="throwWhenTimeout">true to throw an exception if the lock cannot be acquired within the timeout; otherwise, false to silently
         /// skip the action. The default is false.</param>
-        void Lock(string lockKey, TimeSpan waitTimeout, Action action, TimeSpan slidingExpire, bool skipWhenTimeout = true, bool throwWhenTimeout = false);
+        void Lock(string lockKey, TimeSpan waitTimeout, Action action, TimeSpan slidingExpire, bool skipWhenTimeout = true, bool throwWhenTimeout = false, string? fencingKey = null);
         /// <summary>
         /// Attempts to acquire a distributed lock identified by the specified key, with a sliding expiration and
         /// optional timeout behavior.
@@ -112,7 +112,7 @@ namespace Nuve.DataStore
         /// return null on timeout.</param>
         /// <returns>A Lock object representing the acquired lock if successful; otherwise, null if the lock could not be
         /// acquired and throwWhenTimeout is false.</returns>
-        DataStoreLock? AcquireLock(string lockKey, CancellationToken waitCancelToken, TimeSpan slidingExpire, bool throwWhenTimeout);
+        DataStoreLock? AcquireLock(string lockKey, CancellationToken waitCancelToken, TimeSpan slidingExpire, bool throwWhenTimeout, string? fencingKey = null);
         /// <summary>
         /// Attempts to acquire a distributed lock identified by the specified key and, if successful, executes the
         /// provided asynchronous action within the lock's context.
@@ -132,7 +132,7 @@ namespace Nuve.DataStore
         /// <param name="throwWhenTimeout">true to throw an exception if the lock cannot be acquired within the wait timeout; otherwise, false.</param>
         /// <returns>A task that represents the asynchronous operation. The task completes when the action has finished executing
         /// or when the lock acquisition attempt has concluded.</returns>
-        Task LockAsync(string lockKey, TimeSpan waitTimeout, Func<Task> action, TimeSpan slidingExpire, bool skipWhenTimeout = true, bool throwWhenTimeout = false);
+        Task LockAsync(string lockKey, TimeSpan waitTimeout, Func<Task> action, TimeSpan slidingExpire, bool skipWhenTimeout = true, bool throwWhenTimeout = false, string? fencingKey = null);
         /// <summary>
         /// Attempts to acquire a distributed lock asynchronously using the specified key and expiration policy.
         /// </summary>
@@ -149,6 +149,6 @@ namespace Nuve.DataStore
         /// return null when acquisition times out.</param>
         /// <returns>A task that represents the asynchronous operation. The task result contains a Lock object if the lock is
         /// successfully acquired; otherwise, null.</returns>
-        Task<DataStoreLock?> AcquireLockAsync(string lockKey, CancellationToken waitCancelToken, TimeSpan slidingExpire, bool throwWhenTimeout);
+        Task<DataStoreLock?> AcquireLockAsync(string lockKey, CancellationToken waitCancelToken, TimeSpan slidingExpire, bool throwWhenTimeout, string? fencingKey = null);
     }
 }

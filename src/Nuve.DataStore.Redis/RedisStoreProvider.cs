@@ -231,6 +231,66 @@ public partial class RedisStoreProvider : IDataStoreProvider
         }
     }
 
+    internal static T ExecuteTransaction<T>(IDatabase database, Func<ITransaction, Task<T>> actionFactory, RedisKey key, TimeSpan? expire)
+    {
+        if (expire == null)
+            throw new ArgumentNullException(nameof(expire));
+
+        var transaction = database.CreateTransaction();
+        var actionTask = actionFactory(transaction);
+        var expireTask = transaction.KeyExpireAsync(key, expire);
+
+        if (!transaction.Execute())
+            throw new InvalidOperationException("Redis transaction could not be executed.");
+
+        return actionTask.GetAwaiter().GetResult();
+    }
+
+    internal static void ExecuteTransaction(IDatabase database, Func<ITransaction, Task> actionFactory, RedisKey key, TimeSpan? expire)
+    {
+        if (expire == null)
+            throw new ArgumentNullException(nameof(expire));
+
+        var transaction = database.CreateTransaction();
+        var actionTask = actionFactory(transaction);
+        var expireTask = transaction.KeyExpireAsync(key, expire);
+
+        if (!transaction.Execute())
+            throw new InvalidOperationException("Redis transaction could not be executed.");
+
+        actionTask.GetAwaiter().GetResult();
+    }
+
+    internal static async Task<T> ExecuteTransactionAsync<T>(IDatabase database, Func<ITransaction, Task<T>> actionFactory, RedisKey key, TimeSpan? expire)
+    {
+        if (expire == null)
+            throw new ArgumentNullException(nameof(expire));
+
+        var transaction = database.CreateTransaction();
+        var actionTask = actionFactory(transaction);
+        var expireTask = transaction.KeyExpireAsync(key, expire);
+
+        if (!await transaction.ExecuteAsync().ConfigureAwait(false))
+            throw new InvalidOperationException("Redis transaction could not be executed.");
+
+        return await actionTask.ConfigureAwait(false);
+    }
+
+    internal static async Task ExecuteTransactionAsync(IDatabase database, Func<ITransaction, Task> actionFactory, RedisKey key, TimeSpan? expire)
+    {
+        if (expire == null)
+            throw new ArgumentNullException(nameof(expire));
+
+        var transaction = database.CreateTransaction();
+        var actionTask = actionFactory(transaction);
+        var expireTask = transaction.KeyExpireAsync(key, expire);
+
+        if (!await transaction.ExecuteAsync().ConfigureAwait(false))
+            throw new InvalidOperationException("Redis transaction could not be executed.");
+
+        await actionTask.ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Backward-compatible initialize overload.
     /// Defaults to shared mode.
@@ -336,10 +396,10 @@ public partial class RedisStoreProvider : IDataStoreProvider
         return await RedisCallAsync(async db => await db.KeyDeleteAsync(key).ConfigureAwait(false)).ConfigureAwait(false);
     }
 
-    void IDataStoreProvider.Lock(string lockKey, TimeSpan waitTimeout, Action action, TimeSpan slidingExpire, bool skipWhenTimeout, bool throwWhenTimeout)
+    void IDataStoreProvider.Lock(string lockKey, TimeSpan waitTimeout, Action action, TimeSpan slidingExpire, bool skipWhenTimeout, bool throwWhenTimeout, string? fencingKey)
     {
         using var cts = new CancellationTokenSource(waitTimeout);
-        if (TryAcquireLock(lockKey, slidingExpire, throwWhenTimeout, cts.Token, out var lockItem))
+        if (TryAcquireLock(lockKey, slidingExpire, throwWhenTimeout, cts.Token, out var lockItem, fencingKey))
         {
             using (lockItem)
             {
@@ -353,16 +413,16 @@ public partial class RedisStoreProvider : IDataStoreProvider
         }
     }
 
-    DataStoreLock? IDataStoreProvider.AcquireLock(string lockKey, CancellationToken waitCancelToken, TimeSpan slidingExpire, bool throwWhenTimeout)
+    DataStoreLock? IDataStoreProvider.AcquireLock(string lockKey, CancellationToken waitCancelToken, TimeSpan slidingExpire, bool throwWhenTimeout, string? fencingKey)
     {
-        TryAcquireLock(lockKey, slidingExpire, throwWhenTimeout, waitCancelToken, out var lockItem);
+        TryAcquireLock(lockKey, slidingExpire, throwWhenTimeout, waitCancelToken, out var lockItem, fencingKey);
         return lockItem;
     }
 
-    async Task IDataStoreProvider.LockAsync(string lockKey, TimeSpan waitTimeout, Func<Task> action, TimeSpan slidingExpire, bool skipWhenTimeout, bool throwWhenTimeout)
+    async Task IDataStoreProvider.LockAsync(string lockKey, TimeSpan waitTimeout, Func<Task> action, TimeSpan slidingExpire, bool skipWhenTimeout, bool throwWhenTimeout, string? fencingKey)
     {
         using var cts = new CancellationTokenSource(waitTimeout);
-        var lockItem = await TryAcquireLockAsync(lockKey, slidingExpire, throwWhenTimeout, cts.Token).ConfigureAwait(false);
+        var lockItem = await TryAcquireLockAsync(lockKey, slidingExpire, throwWhenTimeout, cts.Token, fencingKey).ConfigureAwait(false);
         if (lockItem != null)
         {
             using (lockItem)
@@ -377,12 +437,12 @@ public partial class RedisStoreProvider : IDataStoreProvider
         }
     }
 
-    async Task<DataStoreLock?> IDataStoreProvider.AcquireLockAsync(string lockKey, CancellationToken waitCancelToken, TimeSpan slidingExpire, bool throwWhenTimeout)
+    async Task<DataStoreLock?> IDataStoreProvider.AcquireLockAsync(string lockKey, CancellationToken waitCancelToken, TimeSpan slidingExpire, bool throwWhenTimeout, string? fencingKey)
     {
-        return await TryAcquireLockAsync(lockKey, slidingExpire, throwWhenTimeout, waitCancelToken).ConfigureAwait(false);
+        return await TryAcquireLockAsync(lockKey, slidingExpire, throwWhenTimeout, waitCancelToken, fencingKey).ConfigureAwait(false);
     }
 
-    private bool TryAcquireLock(string key, TimeSpan slidingExpire, bool throwWhenTimeout, CancellationToken waitCancelToken, out RedisDataStoreLock? locker)
+    private bool TryAcquireLock(string key, TimeSpan slidingExpire, bool throwWhenTimeout, CancellationToken waitCancelToken, out RedisDataStoreLock? locker, string? fencingKey)
     {
         locker = new RedisDataStoreLock(this, key, slidingExpire, throwWhenTimeout, waitCancelToken);
         try
@@ -396,7 +456,7 @@ public partial class RedisStoreProvider : IDataStoreProvider
 
             try
             {
-                var fencingToken = IncrementFencingToken(key);
+                var fencingToken = IncrementFencingToken(fencingKey ?? $"{key}:__fencing__");
                 locker.SetFencingToken(fencingToken);
             }
             catch
@@ -415,7 +475,7 @@ public partial class RedisStoreProvider : IDataStoreProvider
         return true;
     }
 
-    private async Task<RedisDataStoreLock?> TryAcquireLockAsync(string key, TimeSpan slidingExpire, bool throwWhenTimeout, CancellationToken waitCancelToken)
+    private async Task<RedisDataStoreLock?> TryAcquireLockAsync(string key, TimeSpan slidingExpire, bool throwWhenTimeout, CancellationToken waitCancelToken, string? fencingKey)
     {
         var locker = new RedisDataStoreLock(this, key, slidingExpire, throwWhenTimeout, waitCancelToken);
         try
@@ -428,7 +488,7 @@ public partial class RedisStoreProvider : IDataStoreProvider
 
             try
             {
-                var fencingToken = await IncrementFencingTokenAsync(key).ConfigureAwait(false);
+                var fencingToken = await IncrementFencingTokenAsync(fencingKey ?? $"{key}:__fencing__").ConfigureAwait(false);
                 locker.SetFencingToken(fencingToken);
             }
             catch

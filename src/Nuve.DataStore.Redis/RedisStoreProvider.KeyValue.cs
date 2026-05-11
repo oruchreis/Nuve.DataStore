@@ -38,17 +38,17 @@ public partial class RedisStoreProvider : IKeyValueStoreProvider
         }))!;
     }
 
-    bool IKeyValueStoreProvider.Set(string key, byte[] entity, bool overwrite)
+    bool IKeyValueStoreProvider.Set(string key, byte[] entity, bool overwrite, TimeSpan? expire)
     {
         return RedisCall(Db =>
         {
-            return Db.StringSet(key, entity, when: overwrite ? When.Always : When.NotExists);
+            return Db.StringSet(key, entity, expiry: expire, when: overwrite ? When.Always : When.NotExists);
         });
     }
 
-    async Task<bool> IKeyValueStoreProvider.SetAsync(string key, byte[] entity, bool overwrite)
+    async Task<bool> IKeyValueStoreProvider.SetAsync(string key, byte[] entity, bool overwrite, TimeSpan? expire)
     {
-        return (await RedisCallAsync(async Db => { return await Db.StringSetAsync(key, entity, when: overwrite ? When.Always : When.NotExists); }))!;
+        return (await RedisCallAsync(async Db => { return await Db.StringSetAsync(key, entity, expiry: expire, when: overwrite ? When.Always : When.NotExists); }))!;
     }
 
     bool IKeyValueStoreProvider.SetAll(IDictionary<string, byte[]> keyValues, bool overwrite)

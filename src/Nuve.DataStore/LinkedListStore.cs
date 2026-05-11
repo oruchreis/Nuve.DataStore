@@ -162,7 +162,7 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            await _linkedListStoreProvider.SetAsync(MasterKey, index, AsValue(value));
+            await _linkedListStoreProvider.SetAsync(MasterKey, index, AsValue(value), DefaultExpire == TimeSpan.Zero ? null : DefaultExpire);
         }
     }
 
@@ -177,7 +177,7 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            _linkedListStoreProvider.Set(MasterKey, index, AsValue(value));
+            _linkedListStoreProvider.Set(MasterKey, index, AsValue(value), DefaultExpire == TimeSpan.Zero ? null : DefaultExpire);
         }
     }
 
@@ -191,7 +191,8 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            return await _linkedListStoreProvider.AddFirstAsync(MasterKey, AsValues(value));
+            var result = await _linkedListStoreProvider.AddFirstAsync(MasterKey, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire, AsValues(value));
+            return result;
         }
     }
 
@@ -205,7 +206,8 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            return _linkedListStoreProvider.AddFirst(MasterKey, AsValues(value));
+            var result = _linkedListStoreProvider.AddFirst(MasterKey, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire, AsValues(value));
+            return result;
         }
     }
 
@@ -219,7 +221,8 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            return await _linkedListStoreProvider.AddLastAsync(MasterKey, AsValues(value));
+            var result = await _linkedListStoreProvider.AddLastAsync(MasterKey, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire, AsValues(value));
+            return result;
         }
     }
 
@@ -233,7 +236,8 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            return _linkedListStoreProvider.AddLast(MasterKey, AsValues(value));
+            var result = _linkedListStoreProvider.AddLast(MasterKey, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire, AsValues(value));
+            return result;
         }
     }
 
@@ -248,7 +252,10 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            return await _linkedListStoreProvider.AddAfterAsync(MasterKey, AsValue(pivot), AsValue(value));
+            var result = await _linkedListStoreProvider.AddAfterAsync(MasterKey, AsValue(pivot), AsValue(value));
+            if (result > 0 && DefaultExpire != TimeSpan.Zero)
+                await PingAsync();
+            return result;
         }
     }
 
@@ -263,7 +270,10 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            return _linkedListStoreProvider.AddAfter(MasterKey, AsValue(pivot), AsValue(value));
+            var result = _linkedListStoreProvider.AddAfter(MasterKey, AsValue(pivot), AsValue(value));
+            if (result > 0 && DefaultExpire != TimeSpan.Zero)
+                Ping();
+            return result;
         }
     }
 
@@ -278,7 +288,10 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            return await _linkedListStoreProvider.AddBeforeAsync(MasterKey, AsValue(pivot), AsValue(value));
+            var result = await _linkedListStoreProvider.AddBeforeAsync(MasterKey, AsValue(pivot), AsValue(value));
+            if (result > 0 && DefaultExpire != TimeSpan.Zero)
+                await PingAsync();
+            return result;
         }
     }
 
@@ -293,7 +306,10 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            return _linkedListStoreProvider.AddBefore(MasterKey, AsValue(pivot), AsValue(value));
+            var result = _linkedListStoreProvider.AddBefore(MasterKey, AsValue(pivot), AsValue(value));
+            if (result > 0 && DefaultExpire != TimeSpan.Zero)
+                Ping();
+            return result;
         }
     }
 
@@ -385,7 +401,10 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            return await _linkedListStoreProvider.RemoveAsync(MasterKey, AsValue(value));
+            var result = await _linkedListStoreProvider.RemoveAsync(MasterKey, AsValue(value));
+            if (result > 0 && DefaultExpire != TimeSpan.Zero)
+                await PingAsync();
+            return result;
         }
     }
 
@@ -399,7 +418,10 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            return _linkedListStoreProvider.Remove(MasterKey, AsValue(value));
+            var result = _linkedListStoreProvider.Remove(MasterKey, AsValue(value));
+            if (result > 0 && DefaultExpire != TimeSpan.Zero)
+                Ping();
+            return result;
         }
     }
 
@@ -415,6 +437,8 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         {
             CheckAutoPing();
             await _linkedListStoreProvider.TrimAsync(MasterKey, start, end);
+            if (DefaultExpire != TimeSpan.Zero)
+                await PingAsync();
         }
     }
 
@@ -430,6 +454,8 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         {
             CheckAutoPing();
             _linkedListStoreProvider.Trim(MasterKey, start, end);
+            if (DefaultExpire != TimeSpan.Zero)
+                Ping();
         }
     }
 
@@ -469,7 +495,10 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         {
             CheckAutoPing();
             var itemAtIndex = await _linkedListStoreProvider.GetAsync(MasterKey, index);
-            return await _linkedListStoreProvider.AddBeforeAsync(MasterKey, itemAtIndex, AsValue(value)) > 0;
+            var result = await _linkedListStoreProvider.AddBeforeAsync(MasterKey, itemAtIndex, AsValue(value)) > 0;
+            if (result && DefaultExpire != TimeSpan.Zero)
+                await PingAsync();
+            return result;
         }
     }
 
@@ -485,7 +514,10 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         {
             CheckAutoPing();
             var itemAtIndex = _linkedListStoreProvider.Get(MasterKey, index);
-            return _linkedListStoreProvider.AddBefore(MasterKey, itemAtIndex, AsValue(value)) > 0;
+            var result = _linkedListStoreProvider.AddBefore(MasterKey, itemAtIndex, AsValue(value)) > 0;
+            if (result && DefaultExpire != TimeSpan.Zero)
+                Ping();
+            return result;
         }
     }
 
@@ -500,7 +532,10 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         {
             CheckAutoPing();
             var itemAtIndex = await _linkedListStoreProvider.GetAsync(MasterKey, index);
-            return await _linkedListStoreProvider.RemoveAsync(MasterKey, itemAtIndex) > 0;
+            var result = await _linkedListStoreProvider.RemoveAsync(MasterKey, itemAtIndex) > 0;
+            if (result && DefaultExpire != TimeSpan.Zero)
+                await PingAsync();
+            return result;
         }
     }
 
@@ -515,7 +550,10 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         {
             CheckAutoPing();
             var itemAtIndex = _linkedListStoreProvider.Get(MasterKey, index);
-            return _linkedListStoreProvider.Remove(MasterKey, itemAtIndex) > 0;
+            var result = _linkedListStoreProvider.Remove(MasterKey, itemAtIndex) > 0;
+            if (result && DefaultExpire != TimeSpan.Zero)
+                Ping();
+            return result;
         }
     }
 
@@ -533,7 +571,7 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
         using (new ProfileScope(this, lockKey))
         {
-            Provider.Lock(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
+            Provider.Lock(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout, BuildFencingKey(key));
         }
     }
 
@@ -555,7 +593,7 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
         using (new ProfileScope(this, lockKey))
         {
-            return Provider.AcquireLock(lockKey, waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout);
+            return Provider.AcquireLock(lockKey, waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout, BuildFencingKey(key));
         }
     }
 
@@ -596,7 +634,7 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
         using (new ProfileScope(this, lockKey))
         {
-            return await Provider.AcquireLockAsync(lockKey, waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout);
+            return await Provider.AcquireLockAsync(lockKey, waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout, BuildFencingKey(key));
         }
     }
 

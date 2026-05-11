@@ -10,7 +10,7 @@ namespace Nuve.DataStore
     {
         Task<byte[]> GetAsync(string key);
         Task<IDictionary<string, byte[]>> GetAllAsync(params string[] keys);
-        Task<bool> SetAsync(string key, byte[] entity, bool overwrite);
+        Task<bool> SetAsync(string key, byte[] entity, bool overwrite, TimeSpan? expire = null);
         Task<bool> SetAllAsync(IDictionary<string, byte[]> keyValues, bool overwrite);
         Task<byte[]> ExchangeAsync(string key, byte[] value);
         Task<long> AppendStringAsync(string key, string value);
@@ -24,7 +24,7 @@ namespace Nuve.DataStore
 
         byte[] Get(string key);
         IDictionary<string, byte[]> GetAll(params string[] keys);
-        bool Set(string key, byte[] entity, bool overwrite);
+        bool Set(string key, byte[] entity, bool overwrite, TimeSpan? expire = null);
         bool SetAll(IDictionary<string, byte[]> keyValues, bool overwrite);
         byte[] Exchange(string key, byte[] value);
         long AppendString(string key, string value);

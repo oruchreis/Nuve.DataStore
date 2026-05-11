@@ -199,9 +199,7 @@ public class KeyValueStore : DataStoreBase
         using (new ProfileScope(this, key))
         {
             var result = CheckAutoPing(key,
-                () => _keyValueStoreProvider.Set(JoinWithRootNamespace(key), AsValue(entity), overwrite));
-            if (result && DefaultExpire != TimeSpan.Zero)
-                SetExpire(key, DefaultExpire);
+                () => _keyValueStoreProvider.Set(JoinWithRootNamespace(key), AsValue(entity), overwrite, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire));
             return result;
         }
     }
@@ -217,9 +215,7 @@ public class KeyValueStore : DataStoreBase
         using (new ProfileScope(this, key))
         {
             var result = await CheckAutoPing(key,
-                async () => await _keyValueStoreProvider.SetAsync(JoinWithRootNamespace(key), AsValue(entity), overwrite));
-            if (result && DefaultExpire != TimeSpan.Zero)
-                await SetExpireAsync(key, DefaultExpire);
+                async () => await _keyValueStoreProvider.SetAsync(JoinWithRootNamespace(key), AsValue(entity), overwrite, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire));
             return result;
         }
     }
@@ -275,8 +271,11 @@ public class KeyValueStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            return CheckAutoPing(key,
+            var result = CheckAutoPing(key,
                 () => SingleResult<T>(_keyValueStoreProvider.Exchange(JoinWithRootNamespace(key), AsValue(value))));
+            if (DefaultExpire != TimeSpan.Zero)
+                SetExpire(key, DefaultExpire);
+            return result;
         }
     }
 
@@ -291,8 +290,11 @@ public class KeyValueStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            return await CheckAutoPing(key,
+            var result = await CheckAutoPing(key,
                 async () => SingleResult<T>(await _keyValueStoreProvider.ExchangeAsync(JoinWithRootNamespace(key), AsValue(value))));
+            if (DefaultExpire != TimeSpan.Zero)
+                await SetExpireAsync(key, DefaultExpire);
+            return result;
         }
     }
 
@@ -458,8 +460,11 @@ public class KeyValueStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            return CheckAutoPing(key,
+            var result = CheckAutoPing(key,
                 () => _keyValueStoreProvider.Increment(JoinWithRootNamespace(key), amount));
+            if (DefaultExpire != TimeSpan.Zero)
+                SetExpire(key, DefaultExpire);
+            return result;
         }
     }
 
@@ -473,8 +478,11 @@ public class KeyValueStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            return await CheckAutoPing(key,
+            var result = await CheckAutoPing(key,
                 async () => await _keyValueStoreProvider.IncrementAsync(JoinWithRootNamespace(key), amount));
+            if (DefaultExpire != TimeSpan.Zero)
+                await SetExpireAsync(key, DefaultExpire);
+            return result;
         }
     }
 
@@ -488,8 +496,11 @@ public class KeyValueStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            return CheckAutoPing(key,
+            var result = CheckAutoPing(key,
                 () => _keyValueStoreProvider.Decrement(JoinWithRootNamespace(key), amount));
+            if (DefaultExpire != TimeSpan.Zero)
+                SetExpire(key, DefaultExpire);
+            return result;
         }
     }
 
@@ -503,8 +514,11 @@ public class KeyValueStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            return await CheckAutoPing(key,
+            var result = await CheckAutoPing(key,
                 async () => await _keyValueStoreProvider.DecrementAsync(JoinWithRootNamespace(key), amount));
+            if (DefaultExpire != TimeSpan.Zero)
+                await SetExpireAsync(key, DefaultExpire);
+            return result;
         }
     }
 
@@ -519,8 +533,11 @@ public class KeyValueStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            return CheckAutoPing(key,
+            var result = CheckAutoPing(key,
                 () => _keyValueStoreProvider.AppendString(JoinWithRootNamespace(key), value));
+            if (DefaultExpire != TimeSpan.Zero)
+                SetExpire(key, DefaultExpire);
+            return result;
         }
     }
 
@@ -534,8 +551,11 @@ public class KeyValueStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            return await CheckAutoPing(key,
+            var result = await CheckAutoPing(key,
                 async () => await _keyValueStoreProvider.AppendStringAsync(JoinWithRootNamespace(key), value));
+            if (DefaultExpire != TimeSpan.Zero)
+                await SetExpireAsync(key, DefaultExpire);
+            return result;
         }
     }
 
@@ -582,8 +602,11 @@ public class KeyValueStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            return CheckAutoPing(key,
+            var result = CheckAutoPing(key,
                 () => _keyValueStoreProvider.OverwriteString(JoinWithRootNamespace(key), offset, value));
+            if (DefaultExpire != TimeSpan.Zero)
+                SetExpire(key, DefaultExpire);
+            return result;
         }
     }
 
@@ -598,8 +621,11 @@ public class KeyValueStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            return await CheckAutoPing(key,
+            var result = await CheckAutoPing(key,
                 async () => await _keyValueStoreProvider.OverwriteStringAsync(JoinWithRootNamespace(key), offset, value));
+            if (DefaultExpire != TimeSpan.Zero)
+                await SetExpireAsync(key, DefaultExpire);
+            return result;
         }
     }
 
@@ -643,7 +669,7 @@ public class KeyValueStore : DataStoreBase
     {
         using (new ProfileScope(this, lockerKey))
         {
-            Provider.Lock(JoinWithRootNamespace(lockerKey), waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
+            Provider.Lock(JoinWithRootNamespace(lockerKey), waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout, BuildFencingKey(lockerKey));
         }
     }
 
@@ -663,7 +689,7 @@ public class KeyValueStore : DataStoreBase
     /// <returns></returns>
     public DataStoreLock? AcquireLock(string lockerKey, CancellationToken waitCancelToken, TimeSpan? slidingExpire = null, bool throwWhenTimeout = false)
     {
-        return Provider.AcquireLock(lockerKey, waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout);
+        return Provider.AcquireLock(JoinWithRootNamespace(lockerKey), waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout, BuildFencingKey(lockerKey));
     }
 
     /// <summary>
@@ -699,7 +725,7 @@ public class KeyValueStore : DataStoreBase
     /// acquired; otherwise, null.</returns>
     public async Task<DataStoreLock?> AcquireLockAsync(string lockerKey, CancellationToken waitCancelToken, TimeSpan? slidingExpire = null, bool throwWhenTimeout = false)
     {
-        return await Provider.AcquireLockAsync(JoinWithRootNamespace(lockerKey), waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout);
+        return await Provider.AcquireLockAsync(JoinWithRootNamespace(lockerKey), waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout, BuildFencingKey(lockerKey));
     }
 
     /// <summary>

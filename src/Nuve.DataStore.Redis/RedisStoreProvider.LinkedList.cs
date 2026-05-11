@@ -49,46 +49,76 @@ public partial class RedisStoreProvider : ILinkedListStoreProvider
         }))!;
     }
 
-    void ILinkedListStoreProvider.Set(string listKey, long index, byte[] value)
+    void ILinkedListStoreProvider.Set(string listKey, long index, byte[] value, TimeSpan? expire)
     {
         RedisCall(Db =>
         {
+            if (expire != null)
+            {
+                ExecuteTransaction(Db, tran => tran.ListSetByIndexAsync(listKey, index, value), listKey, expire);
+                return;
+            }
+
             Db.ListSetByIndex(listKey, index, value);
         });
     }
 
-    async Task ILinkedListStoreProvider.SetAsync(string listKey, long index, byte[] value)
+    async Task ILinkedListStoreProvider.SetAsync(string listKey, long index, byte[] value, TimeSpan? expire)
     {
         await RedisCallAsync(async Db =>
         {
-            await Db.ListSetByIndexAsync(listKey, index, value);
+            if (expire != null)
+            {
+                await ExecuteTransactionAsync(Db, tran => tran.ListSetByIndexAsync(listKey, index, value), listKey, expire).ConfigureAwait(false);
+                return;
+            }
+
+            await Db.ListSetByIndexAsync(listKey, index, value).ConfigureAwait(false);
         });
     }
 
-    long ILinkedListStoreProvider.AddFirst(string listKey, params byte[][] value)
+    long ILinkedListStoreProvider.AddFirst(string listKey, TimeSpan? expire, params byte[][] value)
     {
         return RedisCall(Db =>
         {
+            if (expire != null)
+                return ExecuteTransaction(Db, tran => tran.ListLeftPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()), listKey, expire);
+
             return Db.ListLeftPush(listKey, value.Select(item => (RedisValue)item).ToArray());
         });
     }
 
-    async Task<long> ILinkedListStoreProvider.AddFirstAsync(string listKey, params byte[][] value)
+    async Task<long> ILinkedListStoreProvider.AddFirstAsync(string listKey, TimeSpan? expire, params byte[][] value)
     {
-        return (await RedisCallAsync(async Db => { return await Db.ListLeftPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()); }))!;
+        return (await RedisCallAsync(async Db =>
+        {
+            if (expire != null)
+                return await ExecuteTransactionAsync(Db, tran => tran.ListLeftPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()), listKey, expire).ConfigureAwait(false);
+
+            return await Db.ListLeftPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()).ConfigureAwait(false);
+        }))!;
     }
 
-    long ILinkedListStoreProvider.AddLast(string listKey, params byte[][] value)
+    long ILinkedListStoreProvider.AddLast(string listKey, TimeSpan? expire, params byte[][] value)
     {
         return RedisCall(Db =>
         {
+            if (expire != null)
+                return ExecuteTransaction(Db, tran => tran.ListRightPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()), listKey, expire);
+
             return Db.ListRightPush(listKey, value.Select(item => (RedisValue)item).ToArray());
         });
     }
 
-    async Task<long> ILinkedListStoreProvider.AddLastAsync(string listKey, params byte[][] value)
+    async Task<long> ILinkedListStoreProvider.AddLastAsync(string listKey, TimeSpan? expire, params byte[][] value)
     {
-        return (await RedisCallAsync(async Db => { return await Db.ListRightPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()); }))!;
+        return (await RedisCallAsync(async Db =>
+        {
+            if (expire != null)
+                return await ExecuteTransactionAsync(Db, tran => tran.ListRightPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()), listKey, expire).ConfigureAwait(false);
+
+            return await Db.ListRightPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()).ConfigureAwait(false);
+        }))!;
     }
 
     long ILinkedListStoreProvider.AddAfter(string listKey, byte[] pivot, byte[] value)
