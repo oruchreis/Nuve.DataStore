@@ -667,9 +667,14 @@ public class KeyValueStore : DataStoreBase
     /// <param name="slidingExpire">The duration of the lock. If provided, the lock will be automatically released after this duration.</param>
     public void Lock(string lockerKey, TimeSpan waitTimeout, Action action, bool skipWhenTimeout = true, bool throwWhenTimeout = false, TimeSpan? slidingExpire = null)
     {
+        var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
+        var resourceKey = JoinWithRootNamespace(lockerKey);
+        var fencingKey = BuildFencingKey(resourceKey, lockerKey);
+        var fencingExpire = GetFencingExpire(resourceKey) ?? effectiveSlidingExpire;
+        TrackFencingKey(resourceKey, fencingKey);
         using (new ProfileScope(this, lockerKey))
         {
-            Provider.Lock(JoinWithRootNamespace(lockerKey), waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout, BuildFencingKey(lockerKey));
+            Provider.Lock(resourceKey, waitTimeout, action, effectiveSlidingExpire, skipWhenTimeout, throwWhenTimeout, fencingKey, fencingExpire);
         }
     }
 
@@ -689,7 +694,12 @@ public class KeyValueStore : DataStoreBase
     /// <returns></returns>
     public DataStoreLock? AcquireLock(string lockerKey, CancellationToken waitCancelToken, TimeSpan? slidingExpire = null, bool throwWhenTimeout = false)
     {
-        return Provider.AcquireLock(JoinWithRootNamespace(lockerKey), waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout, BuildFencingKey(lockerKey));
+        var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
+        var resourceKey = JoinWithRootNamespace(lockerKey);
+        var fencingKey = BuildFencingKey(resourceKey, lockerKey);
+        var fencingExpire = GetFencingExpire(resourceKey) ?? effectiveSlidingExpire;
+        TrackFencingKey(resourceKey, fencingKey);
+        return Provider.AcquireLock(resourceKey, waitCancelToken, effectiveSlidingExpire, throwWhenTimeout, fencingKey, fencingExpire);
     }
 
     /// <summary>
@@ -704,9 +714,14 @@ public class KeyValueStore : DataStoreBase
     /// <param name="slidingExpire">The duration of the lock. If provided, the lock will be automatically released after this duration.</param>
     public async Task LockAsync(string lockerKey, TimeSpan waitTimeout, Func<Task> actionAsync, bool skipWhenTimeout = true, bool throwWhenTimeout = false, TimeSpan? slidingExpire = null)
     {
+        var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
+        var resourceKey = JoinWithRootNamespace(lockerKey);
+        var fencingKey = BuildFencingKey(resourceKey, lockerKey);
+        var fencingExpire = await GetFencingExpireAsync(resourceKey).ConfigureAwait(false) ?? effectiveSlidingExpire;
+        TrackFencingKey(resourceKey, fencingKey);
         using (new ProfileScope(this, lockerKey))
         {
-            await Provider.LockAsync(JoinWithRootNamespace(lockerKey), waitTimeout, actionAsync, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
+            await Provider.LockAsync(resourceKey, waitTimeout, actionAsync, effectiveSlidingExpire, skipWhenTimeout, throwWhenTimeout, fencingKey, fencingExpire).ConfigureAwait(false);
         }
     }
 
@@ -725,7 +740,12 @@ public class KeyValueStore : DataStoreBase
     /// acquired; otherwise, null.</returns>
     public async Task<DataStoreLock?> AcquireLockAsync(string lockerKey, CancellationToken waitCancelToken, TimeSpan? slidingExpire = null, bool throwWhenTimeout = false)
     {
-        return await Provider.AcquireLockAsync(JoinWithRootNamespace(lockerKey), waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout, BuildFencingKey(lockerKey));
+        var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
+        var resourceKey = JoinWithRootNamespace(lockerKey);
+        var fencingKey = BuildFencingKey(resourceKey, lockerKey);
+        var fencingExpire = await GetFencingExpireAsync(resourceKey).ConfigureAwait(false) ?? effectiveSlidingExpire;
+        TrackFencingKey(resourceKey, fencingKey);
+        return await Provider.AcquireLockAsync(resourceKey, waitCancelToken, effectiveSlidingExpire, throwWhenTimeout, fencingKey, fencingExpire).ConfigureAwait(false);
     }
 
     /// <summary>

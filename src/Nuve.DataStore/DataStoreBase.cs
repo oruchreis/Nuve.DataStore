@@ -14,6 +14,7 @@ public abstract class DataStoreBase
     private readonly string? _connectionName;
     private readonly string? _overrideRootNamespace;
     private readonly int? _overrideCompressBiggerThan;
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> _trackedFencingKeysByResource = new();
 
     private DataStoreConnectionContext? _context;
 
@@ -101,7 +102,10 @@ public abstract class DataStoreBase
 
         using (new ProfileScope(this, key))
         {
-            return await Provider.SetExpireAsync(key, DefaultExpire).ConfigureAwait(false);
+            var result = await Provider.SetExpireAsync(key, DefaultExpire).ConfigureAwait(false);
+            if (result)
+                await ExtendTrackedFencingKeysAsync(key, DefaultExpire).ConfigureAwait(false);
+            return result;
         }
     }
 
@@ -117,7 +121,10 @@ public abstract class DataStoreBase
             return false;
         using (new ProfileScope(this, key))
         {
-            return Provider.SetExpire(key, defaultExpire);
+            var result = Provider.SetExpire(key, defaultExpire);
+            if (result)
+                ExtendTrackedFencingKeys(key, defaultExpire);
+            return result;
         }
     }
 
@@ -172,6 +179,54 @@ public abstract class DataStoreBase
     protected virtual string BuildFencingKey(string logicalLockKey)
     {
         return JoinWithRootNamespace($"__fencing__{NamespaceSeperator}{TypeName}{NamespaceSeperator}{logicalLockKey}");
+    }
+
+    [DebuggerStepThrough]
+    protected virtual string BuildFencingKey(string resourceKey, string logicalLockKey)
+    {
+        return $"{resourceKey}{NamespaceSeperator}__fencing__{NamespaceSeperator}{TypeName}{NamespaceSeperator}{logicalLockKey}";
+    }
+
+    protected virtual TimeSpan? GetFencingExpire(string resourceKey)
+    {
+        return DefaultExpire > TimeSpan.Zero
+            ? DefaultExpire
+            : Provider.GetExpire(resourceKey);
+    }
+
+    protected virtual async Task<TimeSpan?> GetFencingExpireAsync(string resourceKey)
+    {
+        return DefaultExpire > TimeSpan.Zero
+            ? DefaultExpire
+            : await Provider.GetExpireAsync(resourceKey).ConfigureAwait(false);
+    }
+
+    protected virtual void TrackFencingKey(string resourceKey, string fencingKey)
+    {
+        var resourceFencingKeys = _trackedFencingKeysByResource.GetOrAdd(resourceKey, static _ => new ConcurrentDictionary<string, byte>());
+        resourceFencingKeys.TryAdd(fencingKey, 0);
+    }
+
+    private void ExtendTrackedFencingKeys(string resourceKey, TimeSpan expire)
+    {
+        if (!_trackedFencingKeysByResource.TryGetValue(resourceKey, out var fencingKeys))
+            return;
+
+        foreach (var fencingKey in fencingKeys.Keys)
+        {
+            Provider.SetExpire(fencingKey, expire);
+        }
+    }
+
+    private async Task ExtendTrackedFencingKeysAsync(string resourceKey, TimeSpan expire)
+    {
+        if (!_trackedFencingKeysByResource.TryGetValue(resourceKey, out var fencingKeys))
+            return;
+
+        foreach (var fencingKey in fencingKeys.Keys)
+        {
+            await Provider.SetExpireAsync(fencingKey, expire).ConfigureAwait(false);
+        }
     }
 
     private DataStoreConnectionContext GetContext()

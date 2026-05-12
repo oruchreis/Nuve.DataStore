@@ -573,10 +573,14 @@ namespace Nuve.DataStore
         /// <param name="throwWhenTimeout">Should a TimeoutException be thrown when a timeout occurs?</param>
         public void Lock(string key, TimeSpan waitTimeout, Action action, bool skipWhenTimeout = true, bool throwWhenTimeout = false, TimeSpan? slidingExpire = null)
         {
+            var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
             var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
+            var fencingKey = BuildFencingKey(MasterKey, key);
+            var fencingExpire = GetFencingExpire(MasterKey) ?? effectiveSlidingExpire;
+            TrackFencingKey(MasterKey, fencingKey);
             using (new ProfileScope(this, lockKey))
             {
-                Provider.Lock(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout, BuildFencingKey(key));
+                Provider.Lock(lockKey, waitTimeout, action, effectiveSlidingExpire, skipWhenTimeout, throwWhenTimeout, fencingKey, fencingExpire);
             }
         }
 
@@ -595,10 +599,14 @@ namespace Nuve.DataStore
         /// throwWhenTimeout is false.</returns>
         public DataStoreLock? AcquireLock(string key, CancellationToken waitCancelToken, TimeSpan? slidingExpire = null, bool throwWhenTimeout = false)
         {
+            var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
             var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
+            var fencingKey = BuildFencingKey(MasterKey, key);
+            var fencingExpire = GetFencingExpire(MasterKey) ?? effectiveSlidingExpire;
+            TrackFencingKey(MasterKey, fencingKey);
             using (new ProfileScope(this, lockKey))
             {
-                return Provider.AcquireLock(lockKey, waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout, BuildFencingKey(key));
+                return Provider.AcquireLock(lockKey, waitCancelToken, effectiveSlidingExpire, throwWhenTimeout, fencingKey, fencingExpire);
             }
         }
 
@@ -612,10 +620,14 @@ namespace Nuve.DataStore
         /// <param name="throwWhenTimeout">Should a TimeoutException be thrown when a timeout occurs?</param>
         public async Task LockAsync(string key, TimeSpan waitTimeout, Func<Task> action, bool skipWhenTimeout = true, bool throwWhenTimeout = false, TimeSpan? slidingExpire = null)
         {
+            var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
             var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
+            var fencingKey = BuildFencingKey(MasterKey, key);
+            var fencingExpire = await GetFencingExpireAsync(MasterKey).ConfigureAwait(false) ?? effectiveSlidingExpire;
+            TrackFencingKey(MasterKey, fencingKey);
             using (new ProfileScope(this, lockKey))
             {
-                await Provider.LockAsync(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
+                await Provider.LockAsync(lockKey, waitTimeout, action, effectiveSlidingExpire, skipWhenTimeout, throwWhenTimeout, fencingKey, fencingExpire).ConfigureAwait(false);
             }
         }
 
@@ -634,10 +646,14 @@ namespace Nuve.DataStore
         /// acquired; otherwise, null.</returns>
         public async Task<DataStoreLock?> AcquireLockAsync(string key, CancellationToken waitCancelToken, TimeSpan? slidingExpire = null, bool throwWhenTimeout = false)
         {
+            var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
             var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
+            var fencingKey = BuildFencingKey(MasterKey, key);
+            var fencingExpire = await GetFencingExpireAsync(MasterKey).ConfigureAwait(false) ?? effectiveSlidingExpire;
+            TrackFencingKey(MasterKey, fencingKey);
             using (new ProfileScope(this, lockKey))
             {
-                return await Provider.AcquireLockAsync(lockKey, waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout, BuildFencingKey(key));
+                return await Provider.AcquireLockAsync(lockKey, waitCancelToken, effectiveSlidingExpire, throwWhenTimeout, fencingKey, fencingExpire).ConfigureAwait(false);
             }
         }
 

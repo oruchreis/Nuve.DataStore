@@ -7,7 +7,7 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
 {
     private readonly ILinkedListStoreProvider _linkedListStoreProvider;
     private static readonly string _valueName = typeof(TValue).GetFriendlyName().Replace('.', '_');
-    private static readonly string _typeName = typeof(DictionaryStore<TValue>).GetFriendlyName();
+    private static readonly string _typeName = typeof(LinkedListStore<TValue>).GetFriendlyName();
 
     /// <summary>
     /// A data store structure that holds LinkedList values.
@@ -568,10 +568,14 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     /// <param name="slidingExpire">The sliding expiration time for the lock.</param>
     public void Lock(string key, TimeSpan waitTimeout, Action action, bool skipWhenTimeout = true, bool throwWhenTimeout = false, TimeSpan? slidingExpire = null)
     {
+        var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
         var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
+        var fencingKey = BuildFencingKey(MasterKey, key);
+        var fencingExpire = GetFencingExpire(MasterKey) ?? effectiveSlidingExpire;
+        TrackFencingKey(MasterKey, fencingKey);
         using (new ProfileScope(this, lockKey))
         {
-            Provider.Lock(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout, BuildFencingKey(key));
+            Provider.Lock(lockKey, waitTimeout, action, effectiveSlidingExpire, skipWhenTimeout, throwWhenTimeout, fencingKey, fencingExpire);
         }
     }
 
@@ -590,10 +594,14 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     /// within the specified timeout and throwWhenTimeout is false.</returns>
     public DataStoreLock? AcquireLock(string key, CancellationToken waitCancelToken, TimeSpan? slidingExpire = null, bool throwWhenTimeout = false)
     {
+        var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
         var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
+        var fencingKey = BuildFencingKey(MasterKey, key);
+        var fencingExpire = GetFencingExpire(MasterKey) ?? effectiveSlidingExpire;
+        TrackFencingKey(MasterKey, fencingKey);
         using (new ProfileScope(this, lockKey))
         {
-            return Provider.AcquireLock(lockKey, waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout, BuildFencingKey(key));
+            return Provider.AcquireLock(lockKey, waitCancelToken, effectiveSlidingExpire, throwWhenTimeout, fencingKey, fencingExpire);
         }
     }
 
@@ -608,10 +616,14 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     /// <param name="slidingExpire">The sliding expiration time for the lock.</param>
     public async Task LockAsync(string key, TimeSpan waitTimeout, Func<Task> action, bool skipWhenTimeout = true, bool throwWhenTimeout = false, TimeSpan? slidingExpire = null)
     {
+        var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
         var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
+        var fencingKey = BuildFencingKey(MasterKey, key);
+        var fencingExpire = await GetFencingExpireAsync(MasterKey).ConfigureAwait(false) ?? effectiveSlidingExpire;
+        TrackFencingKey(MasterKey, fencingKey);
         using (new ProfileScope(this, lockKey))
         {
-            await Provider.LockAsync(lockKey, waitTimeout, action, slidingExpire ?? TimeSpan.FromSeconds(30), skipWhenTimeout, throwWhenTimeout);
+            await Provider.LockAsync(lockKey, waitTimeout, action, effectiveSlidingExpire, skipWhenTimeout, throwWhenTimeout, fencingKey, fencingExpire).ConfigureAwait(false);
         }
     }
 
@@ -631,10 +643,14 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     /// within the timeout and throwWhenTimeout is false.</returns>
     public async Task<DataStoreLock?> AcquireLockAsync(string key, CancellationToken waitCancelToken, TimeSpan? slidingExpire = null, bool throwWhenTimeout = false)
     {
+        var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
         var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
+        var fencingKey = BuildFencingKey(MasterKey, key);
+        var fencingExpire = await GetFencingExpireAsync(MasterKey).ConfigureAwait(false) ?? effectiveSlidingExpire;
+        TrackFencingKey(MasterKey, fencingKey);
         using (new ProfileScope(this, lockKey))
         {
-            return await Provider.AcquireLockAsync(lockKey, waitCancelToken, slidingExpire ?? TimeSpan.FromSeconds(30), throwWhenTimeout, BuildFencingKey(key));
+            return await Provider.AcquireLockAsync(lockKey, waitCancelToken, effectiveSlidingExpire, throwWhenTimeout, fencingKey, fencingExpire).ConfigureAwait(false);
         }
     }
 

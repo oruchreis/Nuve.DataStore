@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.0.7] - 2026-05-11
+
+### Fixed
+- Store-level distributed locks now scope fencing counters to the underlying store resource instead of sharing a single counter across different `HashStore`, `DictionaryStore`, `HashSetStore`, or `LinkedListStore` master keys.
+- Fencing counters now receive a retention TTL based on the store's `DefaultExpire`, the current resource TTL, or the lock sliding expiration as a fallback, preventing unbounded fencing-key leaks.
+- `Ping` and `autoPing` for tracked store resources now extend the TTL of associated fencing counters alongside the store key.
+- `KeyValueStore` lock fencing now uses the full resource key and no longer leaves provider-generated fencing keys without expiration when a fallback TTL is available.
+
 ## [v2.0.6] - 2026-05-11
 
 ### Fixed

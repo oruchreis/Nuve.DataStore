@@ -13,9 +13,9 @@ A provider-based data store abstraction with explicit startup initialization, co
 ## Installation
 
 ```bash
-dotnet add package Nuve.DataStore --version 2.0.6
-dotnet add package Nuve.DataStore.Redis --version 2.0.6
-dotnet add package Nuve.DataStore.Serializer.JsonNet --version 2.0.6
+dotnet add package Nuve.DataStore --version 2.0.7
+dotnet add package Nuve.DataStore.Redis --version 2.0.7
+dotnet add package Nuve.DataStore.Serializer.JsonNet --version 2.0.7
 ```
 
 Add `Nuve.DataStore.Serializer.Ceras` only if you need the Ceras serializer.
