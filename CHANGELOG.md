@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.0.8] - 2026-05-20
+
+### Fixed
+- **Fencing monotonicity (Sorun 2):** Permanent resource keys (no TTL) with `DefaultExpire=0` no longer fall back to `slidingExpire` as fencing counter TTL. When `GetFencingExpire` returns `null` the fencing counter is created without expiration, preserving monotonic counter growth across lock cycles.
+- **Cross-instance Ping (Sorun 3):** Removed per-store-instance `_trackedFencingKeysByResource` tracking. Fencing key is now deterministically computed via `BuildFencingKey(resourceKey)` so `Ping`/`autoPing` can extend the fencing counter TTL without requiring the exact store instance that created the lock.
+- **KeyValueStore lock key collision (Sorun 4):** `KeyValueStore` Lock methods now acquire the physical Redis lock on `{resourceKey}:__lock__` instead of `resourceKey` itself, preventing `SET NX` from failing silently on keys that already hold data.
+- **autoPing semantics:** When `autoPing=false`, write operations (`Set`, `Increment`, `Decrement`, `Exchange`, etc.) no longer atomically reset the key TTL. TTL management becomes fully explicit — only a manual `Ping()` call applies `DefaultExpire`. When `autoPing=true`, writes continue to atomically apply `DefaultExpire` (previous behavior preserved). A new `AutoExpire` protected property centralises this decision.
+- **Ping fencing key extend:** `Ping`/`PingAsync` now always attempts to extend the fencing counter TTL regardless of whether the data key's `SetExpire` succeeded. This ensures the fencing counter stays alive for `KeyValueStore` instances used purely for distributed locking (no data key stored).
+- Simplified `BuildFencingKey` to a single deterministic form `{resourceKey}:__fencing__:{TypeName}` — the previous per-lock `logicalLockKey` suffix caused counter proliferation across different callers for the same resource.
+
 ## [v2.0.7] - 2026-05-11
 
 ### Fixed

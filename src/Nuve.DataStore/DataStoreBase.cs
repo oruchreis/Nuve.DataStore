@@ -14,8 +14,6 @@ public abstract class DataStoreBase
     private readonly string? _connectionName;
     private readonly string? _overrideRootNamespace;
     private readonly int? _overrideCompressBiggerThan;
-    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> _trackedFencingKeysByResource = new();
-
     private DataStoreConnectionContext? _context;
 
     internal readonly IDataStoreProfiler? Profiler;
@@ -78,6 +76,15 @@ public abstract class DataStoreBase
 
     public string NamespaceSeperator { get; }
 
+    /// <summary>
+    /// The expiration time to apply atomically to write operations.
+    /// Returns <see cref="DefaultExpire"/> when <see cref="AutoPing"/> is enabled,
+    /// so each write atomically refreshes the TTL.
+    /// Returns <c>null</c> when <see cref="AutoPing"/> is disabled,
+    /// leaving TTL management to explicit <see cref="PingAsync"/> / <see cref="Ping"/> calls.
+    /// </summary>
+    protected TimeSpan? AutoExpire => AutoPing && DefaultExpire > TimeSpan.Zero ? DefaultExpire : null;
+
     protected IDataStoreSerializer Serializer =>
         _serializerOverride ?? GetContext().Serializer;
 
@@ -103,8 +110,7 @@ public abstract class DataStoreBase
         using (new ProfileScope(this, key))
         {
             var result = await Provider.SetExpireAsync(key, DefaultExpire).ConfigureAwait(false);
-            if (result)
-                await ExtendTrackedFencingKeysAsync(key, DefaultExpire).ConfigureAwait(false);
+            await Provider.SetExpireAsync(BuildFencingKey(key), DefaultExpire).ConfigureAwait(false);
             return result;
         }
     }
@@ -122,8 +128,7 @@ public abstract class DataStoreBase
         using (new ProfileScope(this, key))
         {
             var result = Provider.SetExpire(key, defaultExpire);
-            if (result)
-                ExtendTrackedFencingKeys(key, defaultExpire);
+            Provider.SetExpire(BuildFencingKey(key), defaultExpire);
             return result;
         }
     }
@@ -176,15 +181,9 @@ public abstract class DataStoreBase
     }
 
     [DebuggerStepThrough]
-    protected virtual string BuildFencingKey(string logicalLockKey)
+    protected virtual string BuildFencingKey(string resourceKey)
     {
-        return JoinWithRootNamespace($"__fencing__{NamespaceSeperator}{TypeName}{NamespaceSeperator}{logicalLockKey}");
-    }
-
-    [DebuggerStepThrough]
-    protected virtual string BuildFencingKey(string resourceKey, string logicalLockKey)
-    {
-        return $"{resourceKey}{NamespaceSeperator}__fencing__{NamespaceSeperator}{TypeName}{NamespaceSeperator}{logicalLockKey}";
+        return $"{resourceKey}{NamespaceSeperator}__fencing__{NamespaceSeperator}{TypeName}";
     }
 
     protected virtual TimeSpan? GetFencingExpire(string resourceKey)
@@ -199,34 +198,6 @@ public abstract class DataStoreBase
         return DefaultExpire > TimeSpan.Zero
             ? DefaultExpire
             : await Provider.GetExpireAsync(resourceKey).ConfigureAwait(false);
-    }
-
-    protected virtual void TrackFencingKey(string resourceKey, string fencingKey)
-    {
-        var resourceFencingKeys = _trackedFencingKeysByResource.GetOrAdd(resourceKey, static _ => new ConcurrentDictionary<string, byte>());
-        resourceFencingKeys.TryAdd(fencingKey, 0);
-    }
-
-    private void ExtendTrackedFencingKeys(string resourceKey, TimeSpan expire)
-    {
-        if (!_trackedFencingKeysByResource.TryGetValue(resourceKey, out var fencingKeys))
-            return;
-
-        foreach (var fencingKey in fencingKeys.Keys)
-        {
-            Provider.SetExpire(fencingKey, expire);
-        }
-    }
-
-    private async Task ExtendTrackedFencingKeysAsync(string resourceKey, TimeSpan expire)
-    {
-        if (!_trackedFencingKeysByResource.TryGetValue(resourceKey, out var fencingKeys))
-            return;
-
-        foreach (var fencingKey in fencingKeys.Keys)
-        {
-            await Provider.SetExpireAsync(fencingKey, expire).ConfigureAwait(false);
-        }
     }
 
     private DataStoreConnectionContext GetContext()

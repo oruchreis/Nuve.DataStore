@@ -360,7 +360,7 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                var result = await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, key, AsValue(value), overwrite, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire));
+                var result = await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, key, AsValue(value), overwrite, AutoExpire));
                 return result;
             }
         }
@@ -376,7 +376,7 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                var result = CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, key, AsValue(value), overwrite, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire));
+                var result = CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, key, AsValue(value), overwrite, AutoExpire));
                 return result;
             }
         }
@@ -391,7 +391,7 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, MasterKey))
             {
-                await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, AsKeyValue(keyValues, serializeParallel, parallelOptions), DefaultExpire == TimeSpan.Zero ? null : DefaultExpire));
+                await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, AsKeyValue(keyValues, serializeParallel, parallelOptions), AutoExpire));
             }
         }
 
@@ -405,7 +405,7 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, MasterKey))
             {
-                CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, AsKeyValue(keyValues, serializeParallel, parallelOptions), DefaultExpire == TimeSpan.Zero ? null : DefaultExpire));
+                CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, AsKeyValue(keyValues, serializeParallel, parallelOptions), AutoExpire));
             }
         }
 
@@ -516,7 +516,7 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                var result = await CheckAutoPing(async () => await _dictionaryStoreProvider.IncrementAsync(MasterKey, key, value, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire));
+                var result = await CheckAutoPing(async () => await _dictionaryStoreProvider.IncrementAsync(MasterKey, key, value, AutoExpire));
                 return result;
             }
         }
@@ -532,7 +532,7 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                var result = CheckAutoPing(() => _dictionaryStoreProvider.Increment(MasterKey, key, value, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire));
+                var result = CheckAutoPing(() => _dictionaryStoreProvider.Increment(MasterKey, key, value, AutoExpire));
                 return result;
             }
         }
@@ -575,9 +575,8 @@ namespace Nuve.DataStore
         {
             var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
             var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
-            var fencingKey = BuildFencingKey(MasterKey, key);
-            var fencingExpire = GetFencingExpire(MasterKey) ?? effectiveSlidingExpire;
-            TrackFencingKey(MasterKey, fencingKey);
+            var fencingKey = BuildFencingKey(MasterKey);
+            var fencingExpire = GetFencingExpire(MasterKey);
             using (new ProfileScope(this, lockKey))
             {
                 Provider.Lock(lockKey, waitTimeout, action, effectiveSlidingExpire, skipWhenTimeout, throwWhenTimeout, fencingKey, fencingExpire);
@@ -601,9 +600,8 @@ namespace Nuve.DataStore
         {
             var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
             var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
-            var fencingKey = BuildFencingKey(MasterKey, key);
-            var fencingExpire = GetFencingExpire(MasterKey) ?? effectiveSlidingExpire;
-            TrackFencingKey(MasterKey, fencingKey);
+            var fencingKey = BuildFencingKey(MasterKey);
+            var fencingExpire = GetFencingExpire(MasterKey);
             using (new ProfileScope(this, lockKey))
             {
                 return Provider.AcquireLock(lockKey, waitCancelToken, effectiveSlidingExpire, throwWhenTimeout, fencingKey, fencingExpire);
@@ -622,9 +620,8 @@ namespace Nuve.DataStore
         {
             var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
             var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
-            var fencingKey = BuildFencingKey(MasterKey, key);
-            var fencingExpire = await GetFencingExpireAsync(MasterKey).ConfigureAwait(false) ?? effectiveSlidingExpire;
-            TrackFencingKey(MasterKey, fencingKey);
+            var fencingKey = BuildFencingKey(MasterKey);
+            var fencingExpire = await GetFencingExpireAsync(MasterKey).ConfigureAwait(false);
             using (new ProfileScope(this, lockKey))
             {
                 await Provider.LockAsync(lockKey, waitTimeout, action, effectiveSlidingExpire, skipWhenTimeout, throwWhenTimeout, fencingKey, fencingExpire).ConfigureAwait(false);
@@ -648,9 +645,8 @@ namespace Nuve.DataStore
         {
             var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
             var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
-            var fencingKey = BuildFencingKey(MasterKey, key);
-            var fencingExpire = await GetFencingExpireAsync(MasterKey).ConfigureAwait(false) ?? effectiveSlidingExpire;
-            TrackFencingKey(MasterKey, fencingKey);
+            var fencingKey = BuildFencingKey(MasterKey);
+            var fencingExpire = await GetFencingExpireAsync(MasterKey).ConfigureAwait(false);
             using (new ProfileScope(this, lockKey))
             {
                 return await Provider.AcquireLockAsync(lockKey, waitCancelToken, effectiveSlidingExpire, throwWhenTimeout, fencingKey, fencingExpire).ConfigureAwait(false);

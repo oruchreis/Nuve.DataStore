@@ -162,7 +162,7 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            await _linkedListStoreProvider.SetAsync(MasterKey, index, AsValue(value), DefaultExpire == TimeSpan.Zero ? null : DefaultExpire);
+            await _linkedListStoreProvider.SetAsync(MasterKey, index, AsValue(value), AutoExpire);
         }
     }
 
@@ -177,7 +177,7 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            _linkedListStoreProvider.Set(MasterKey, index, AsValue(value), DefaultExpire == TimeSpan.Zero ? null : DefaultExpire);
+            _linkedListStoreProvider.Set(MasterKey, index, AsValue(value), AutoExpire);
         }
     }
 
@@ -191,7 +191,7 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            var result = await _linkedListStoreProvider.AddFirstAsync(MasterKey, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire, AsValues(value));
+            var result = await _linkedListStoreProvider.AddFirstAsync(MasterKey, AutoExpire, AsValues(value));
             return result;
         }
     }
@@ -206,7 +206,7 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            var result = _linkedListStoreProvider.AddFirst(MasterKey, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire, AsValues(value));
+            var result = _linkedListStoreProvider.AddFirst(MasterKey, AutoExpire, AsValues(value));
             return result;
         }
     }
@@ -221,7 +221,7 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            var result = await _linkedListStoreProvider.AddLastAsync(MasterKey, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire, AsValues(value));
+            var result = await _linkedListStoreProvider.AddLastAsync(MasterKey, AutoExpire, AsValues(value));
             return result;
         }
     }
@@ -236,7 +236,7 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
         using (new ProfileScope(this, MasterKey))
         {
             CheckAutoPing();
-            var result = _linkedListStoreProvider.AddLast(MasterKey, DefaultExpire == TimeSpan.Zero ? null : DefaultExpire, AsValues(value));
+            var result = _linkedListStoreProvider.AddLast(MasterKey, AutoExpire, AsValues(value));
             return result;
         }
     }
@@ -570,9 +570,8 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     {
         var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
         var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
-        var fencingKey = BuildFencingKey(MasterKey, key);
-        var fencingExpire = GetFencingExpire(MasterKey) ?? effectiveSlidingExpire;
-        TrackFencingKey(MasterKey, fencingKey);
+        var fencingKey = BuildFencingKey(MasterKey);
+        var fencingExpire = GetFencingExpire(MasterKey);
         using (new ProfileScope(this, lockKey))
         {
             Provider.Lock(lockKey, waitTimeout, action, effectiveSlidingExpire, skipWhenTimeout, throwWhenTimeout, fencingKey, fencingExpire);
@@ -596,9 +595,8 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     {
         var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
         var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
-        var fencingKey = BuildFencingKey(MasterKey, key);
-        var fencingExpire = GetFencingExpire(MasterKey) ?? effectiveSlidingExpire;
-        TrackFencingKey(MasterKey, fencingKey);
+        var fencingKey = BuildFencingKey(MasterKey);
+        var fencingExpire = GetFencingExpire(MasterKey);
         using (new ProfileScope(this, lockKey))
         {
             return Provider.AcquireLock(lockKey, waitCancelToken, effectiveSlidingExpire, throwWhenTimeout, fencingKey, fencingExpire);
@@ -618,9 +616,8 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     {
         var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
         var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
-        var fencingKey = BuildFencingKey(MasterKey, key);
-        var fencingExpire = await GetFencingExpireAsync(MasterKey).ConfigureAwait(false) ?? effectiveSlidingExpire;
-        TrackFencingKey(MasterKey, fencingKey);
+        var fencingKey = BuildFencingKey(MasterKey);
+        var fencingExpire = await GetFencingExpireAsync(MasterKey).ConfigureAwait(false);
         using (new ProfileScope(this, lockKey))
         {
             await Provider.LockAsync(lockKey, waitTimeout, action, effectiveSlidingExpire, skipWhenTimeout, throwWhenTimeout, fencingKey, fencingExpire).ConfigureAwait(false);
@@ -645,9 +642,8 @@ public sealed class LinkedListStore<TValue> : DataStoreBase, IList<TValue?>
     {
         var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
         var lockKey = string.Format("{0}_locker_{1}{2}", MasterKey, NamespaceSeperator, key);
-        var fencingKey = BuildFencingKey(MasterKey, key);
-        var fencingExpire = await GetFencingExpireAsync(MasterKey).ConfigureAwait(false) ?? effectiveSlidingExpire;
-        TrackFencingKey(MasterKey, fencingKey);
+        var fencingKey = BuildFencingKey(MasterKey);
+        var fencingExpire = await GetFencingExpireAsync(MasterKey).ConfigureAwait(false);
         using (new ProfileScope(this, lockKey))
         {
             return await Provider.AcquireLockAsync(lockKey, waitCancelToken, effectiveSlidingExpire, throwWhenTimeout, fencingKey, fencingExpire).ConfigureAwait(false);

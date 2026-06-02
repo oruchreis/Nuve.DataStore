@@ -187,17 +187,21 @@ public class RedisStoreProviderTests
             waitCancelToken: cts.Token)!;
 
         var namespacedKey = $"{rootNamespace}:sync-lock-path";
-        var fencingPattern = $"{namespacedKey}:*__fencing__:*sync-lock-path";
+        var lockKey = $"{namespacedKey}:__lock__";          // Sorun 4 fix: lock is on __lock__ suffix
+        var fencingKey = $"{namespacedKey}:__fencing__:KeyValueStore";
 
-        Assert.IsTrue(WaitUntil(() => _provider.GetExpire(namespacedKey) > TimeSpan.Zero, TimeSpan.FromSeconds(1)));
+        // lock key should exist with a TTL; data key should be untouched
+        Assert.IsTrue(WaitUntil(() => _provider.GetExpire(lockKey) > TimeSpan.Zero, TimeSpan.FromSeconds(1)));
+        Assert.IsNull(_provider.GetExpire(namespacedKey));  // data key not set by locking alone
         Assert.IsNull(_provider.GetExpire("sync-lock-path"));
         Assert.IsTrue(lockItem.FencingToken > 0);
-        Assert.IsTrue(WaitUntil(() => FindKeys(mux, fencingPattern).Length == 1, TimeSpan.FromSeconds(5)));
+        Assert.IsTrue(WaitUntil(() => _provider.GetExpire(fencingKey) > TimeSpan.Zero, TimeSpan.FromSeconds(5)));
 
-        var fencingKey = FindKeys(mux, fencingPattern).Single();
         Assert.IsTrue(_provider.GetExpire(fencingKey) > TimeSpan.Zero);
 
-        Assert.IsTrue(WaitUntil(() => FindKeys(mux, fencingPattern).Length == 0, TimeSpan.FromSeconds(14)));
+        // release the lock so the lock key also expires
+        lockItem.Dispose();
+        Assert.IsTrue(WaitUntil(() => _provider.GetExpire(fencingKey) == null, TimeSpan.FromSeconds(14)));
     }
 
     [TestMethod]
@@ -222,23 +226,21 @@ public class RedisStoreProviderTests
 
         using var secondLock = store2.AcquireLock("Hotel:ClientSearchRequest_locker", cts.Token, throwWhenTimeout: true)!;
         var secondToken = secondLock.FencingToken;
-        var fencingPattern1 = $"{store1.MasterKey}:*__fencing__:*Hotel:ClientSearchRequest_locker";
-        var fencingPattern2 = $"{store2.MasterKey}:*__fencing__:*Hotel:ClientSearchRequest_locker";
+        var fencingKey1 = $"{store1.MasterKey}:__fencing__:HashStore";
+        var fencingKey2 = $"{store2.MasterKey}:__fencing__:HashStore";
 
         Assert.IsTrue(firstToken > 0);
-        Assert.AreEqual(firstToken, secondToken);
-        Assert.IsTrue(WaitUntil(() => FindKeys(mux, fencingPattern1).Length == 1, TimeSpan.FromSeconds(5)));
-        Assert.IsTrue(WaitUntil(() => FindKeys(mux, fencingPattern2).Length == 1, TimeSpan.FromSeconds(5)));
-
-        var fencingKey1 = FindKeys(mux, fencingPattern1).Single();
-        var fencingKey2 = FindKeys(mux, fencingPattern2).Single();
+        Assert.AreEqual(firstToken, secondToken);   // independent MasterKeys → both start at 1
+        Assert.IsTrue(WaitUntil(() => localProvider.GetExpire(fencingKey1) > TimeSpan.Zero, TimeSpan.FromSeconds(5)));
+        Assert.IsTrue(WaitUntil(() => localProvider.GetExpire(fencingKey2) > TimeSpan.Zero, TimeSpan.FromSeconds(5)));
 
         Assert.IsTrue(localProvider.GetExpire(fencingKey1) > TimeSpan.Zero);
         Assert.IsTrue(localProvider.GetExpire(fencingKey2) > TimeSpan.Zero);
-        Assert.AreEqual(0, FindKeys(mux, $"{rootNamespace}:__fencing__:HashStore:Hotel:ClientSearchRequest_locker").Length);
+        // Old root-namespace-scoped format no longer created
+        Assert.AreEqual(0, FindKeys(mux, $"{rootNamespace}:__fencing__:HashStore:*").Length);
 
-        Assert.IsTrue(WaitUntil(() => FindKeys(mux, fencingPattern1).Length == 0, TimeSpan.FromSeconds(14)));
-        Assert.IsTrue(WaitUntil(() => FindKeys(mux, fencingPattern2).Length == 0, TimeSpan.FromSeconds(14)));
+        Assert.IsTrue(WaitUntil(() => localProvider.GetExpire(fencingKey1) == null, TimeSpan.FromSeconds(14)));
+        Assert.IsTrue(WaitUntil(() => localProvider.GetExpire(fencingKey2) == null, TimeSpan.FromSeconds(14)));
     }
 
     [TestMethod]
@@ -255,9 +257,8 @@ public class RedisStoreProviderTests
             Assert.IsTrue(lockItem.FencingToken > 0);
         }
 
-        var fencingPattern = $"{store.MasterKey}:*__fencing__:*Hotel:ClientSearchRequest_locker";
-        Assert.IsTrue(WaitUntil(() => FindKeys(mux, fencingPattern).Length == 1, TimeSpan.FromSeconds(5)));
-        var fencingKey = FindKeys(mux, fencingPattern).Single();
+        var fencingKey = $"{store.MasterKey}:__fencing__:HashStore";
+        Assert.IsTrue(WaitUntil(() => _provider.GetExpire(fencingKey) > TimeSpan.Zero, TimeSpan.FromSeconds(5)));
         var ttlBeforeWait = _provider.GetExpire(fencingKey);
         Assert.IsTrue(ttlBeforeWait > TimeSpan.Zero);
 
@@ -299,21 +300,21 @@ public class RedisStoreProviderTests
             Assert.IsTrue(lockItem.FencingToken > 0);
         }
 
-        var dictionaryPattern = $"{dictionaryStore.MasterKey}:*__fencing__:*common-lock";
-        var hashSetPattern = $"{hashSetStore.MasterKey}:*__fencing__:*common-lock";
-        var linkedListPattern = $"{linkedListStore.MasterKey}:*__fencing__:*common-lock";
+        var dictionaryFencingKey = $"{dictionaryStore.MasterKey}:__fencing__:DictionaryStore<string>";
+        var hashSetFencingKey = $"{hashSetStore.MasterKey}:__fencing__:HashSetStore<string>";
+        var linkedListFencingKey = $"{linkedListStore.MasterKey}:__fencing__:LinkedListStore<string>";
 
-        Assert.IsTrue(WaitUntil(() => FindKeys(mux, dictionaryPattern).Length == 1, TimeSpan.FromSeconds(5)));
-        Assert.IsTrue(WaitUntil(() => FindKeys(mux, hashSetPattern).Length == 1, TimeSpan.FromSeconds(5)));
-        Assert.IsTrue(WaitUntil(() => FindKeys(mux, linkedListPattern).Length == 1, TimeSpan.FromSeconds(5)));
+        Assert.IsTrue(WaitUntil(() => _provider.GetExpire(dictionaryFencingKey) > TimeSpan.Zero, TimeSpan.FromSeconds(5)));
+        Assert.IsTrue(WaitUntil(() => _provider.GetExpire(hashSetFencingKey) > TimeSpan.Zero, TimeSpan.FromSeconds(5)));
+        Assert.IsTrue(WaitUntil(() => _provider.GetExpire(linkedListFencingKey) > TimeSpan.Zero, TimeSpan.FromSeconds(5)));
 
-        Assert.IsTrue(_provider.GetExpire(FindKeys(mux, dictionaryPattern).Single()) > TimeSpan.Zero);
-        Assert.IsTrue(_provider.GetExpire(FindKeys(mux, hashSetPattern).Single()) > TimeSpan.Zero);
-        Assert.IsTrue(_provider.GetExpire(FindKeys(mux, linkedListPattern).Single()) > TimeSpan.Zero);
+        Assert.IsTrue(_provider.GetExpire(dictionaryFencingKey) > TimeSpan.Zero);
+        Assert.IsTrue(_provider.GetExpire(hashSetFencingKey) > TimeSpan.Zero);
+        Assert.IsTrue(_provider.GetExpire(linkedListFencingKey) > TimeSpan.Zero);
 
-        Assert.IsTrue(WaitUntil(() => FindKeys(mux, dictionaryPattern).Length == 0, TimeSpan.FromSeconds(14)));
-        Assert.IsTrue(WaitUntil(() => FindKeys(mux, hashSetPattern).Length == 0, TimeSpan.FromSeconds(14)));
-        Assert.IsTrue(WaitUntil(() => FindKeys(mux, linkedListPattern).Length == 0, TimeSpan.FromSeconds(14)));
+        Assert.IsTrue(WaitUntil(() => _provider.GetExpire(dictionaryFencingKey) == null, TimeSpan.FromSeconds(14)));
+        Assert.IsTrue(WaitUntil(() => _provider.GetExpire(hashSetFencingKey) == null, TimeSpan.FromSeconds(14)));
+        Assert.IsTrue(WaitUntil(() => _provider.GetExpire(linkedListFencingKey) == null, TimeSpan.FromSeconds(14)));
     }
 
     [TestMethod]
