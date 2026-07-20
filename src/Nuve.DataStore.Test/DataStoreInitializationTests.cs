@@ -124,6 +124,43 @@ public class DataStoreInitializationTests
     }
 
     [TestMethod]
+    public void Unknown_Connection_Name_Falls_Back_To_Default_Connection()
+    {
+        var defaultNamespace = Bootstrap.NewRootNamespace("fallback-default");
+        var cacheNamespace = Bootstrap.NewRootNamespace("fallback-cache");
+        var connectionString = RedisTestHelpers.GetRedisConnectionString();
+
+        using var serviceProvider = Bootstrap.BuildRedisServiceProvider(builder =>
+        {
+            builder.AddDefaultConnection(
+                provider: "Redis",
+                options: new ConnectionOptions
+                {
+                    ConnectionString = connectionString,
+                    ConnectionMode = ConnectionMode.Shared
+                },
+                rootNamespace: defaultNamespace);
+
+            builder.AddConnection(
+                name: "cache",
+                provider: "Redis",
+                options: new ConnectionOptions
+                {
+                    ConnectionString = connectionString,
+                    ConnectionMode = ConnectionMode.Shared
+                },
+                rootNamespace: cacheNamespace);
+        });
+
+        serviceProvider.InitializeDataStore();
+
+        // An unregistered connection name no longer throws; it resolves to the default connection.
+        var resolved = DataStoreAccess.GetConnection("does-not-exist");
+
+        Assert.AreEqual(defaultNamespace, resolved.RootNamespace);
+    }
+
+    [TestMethod]
     public async Task Custom_Serializer_Is_Used_When_Registered()
     {
         using var serviceProvider = new ServiceCollection()

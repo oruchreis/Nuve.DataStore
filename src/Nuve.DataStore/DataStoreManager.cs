@@ -264,13 +264,20 @@ public sealed class DataStoreManager
                     "No default data store connection has been configured.");
         }
 
-        if (!_connections.TryGetValue(connectionName!, out var registration))
+        if (_connections.TryGetValue(connectionName!, out var registration))
+            return registration;
+
+        if (!string.IsNullOrWhiteSpace(_defaultConnectionName)
+            && _connections.TryGetValue(_defaultConnectionName!, out var defaultRegistration))
         {
-            throw new InvalidOperationException(
-                $"The data store connection '{connectionName}' could not be found.");
+            Logger.LogWarning(
+                "The data store connection '{ConnectionName}' could not be found; falling back to the default connection '{DefaultConnectionName}'.",
+                connectionName, _defaultConnectionName);
+            return defaultRegistration;
         }
 
-        return registration;
+        throw new InvalidOperationException(
+            $"The data store connection '{connectionName}' could not be found.");
     }
 
     private IDataStoreSerializer GetSerializer(DataStoreConnectionRegistration registration)

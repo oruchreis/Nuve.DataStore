@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.0.10] - 2026-07-20
+
+### Changed
+- **Unknown connection name falls back to the default connection:** Resolving a store whose `connectionName` is not registered no longer throws immediately. When a default connection exists, a warning is logged and the default connection is used instead. An `InvalidOperationException` is still thrown only when no default connection is available to fall back to.
+
 ## [v2.0.9] - 2026-07-20
 
 ### Fixed
