@@ -382,7 +382,7 @@ public sealed class HashStore : DataStoreBase
         var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
         var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
         var fencingKey = BuildFencingKey(MasterKey);
-        var fencingExpire = GetFencingExpire(MasterKey);
+        var fencingExpire = GetFencingExpire(MasterKey, effectiveSlidingExpire);
         using (new ProfileScope(this, lockKey))
         {
             Provider.Lock(lockKey, waitTimeout, action, effectiveSlidingExpire, skipWhenTimeout, throwWhenTimeout, fencingKey, fencingExpire);
@@ -407,7 +407,7 @@ public sealed class HashStore : DataStoreBase
         var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
         var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
         var fencingKey = BuildFencingKey(MasterKey);
-        var fencingExpire = GetFencingExpire(MasterKey);
+        var fencingExpire = GetFencingExpire(MasterKey, effectiveSlidingExpire);
         using (new ProfileScope(this, lockKey))
         {
             return Provider.AcquireLock(lockKey, waitCancelToken, effectiveSlidingExpire, throwWhenTimeout, fencingKey, fencingExpire);
@@ -427,7 +427,7 @@ public sealed class HashStore : DataStoreBase
         var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
         var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
         var fencingKey = BuildFencingKey(MasterKey);
-        var fencingExpire = await GetFencingExpireAsync(MasterKey).ConfigureAwait(false);
+        var fencingExpire = await GetFencingExpireAsync(MasterKey, effectiveSlidingExpire).ConfigureAwait(false);
         using (new ProfileScope(this, lockKey))
         {
             await Provider.LockAsync(lockKey, waitTimeout, action, effectiveSlidingExpire, skipWhenTimeout, throwWhenTimeout, fencingKey, fencingExpire).ConfigureAwait(false);
@@ -452,7 +452,7 @@ public sealed class HashStore : DataStoreBase
         var effectiveSlidingExpire = slidingExpire ?? TimeSpan.FromSeconds(30);
         var lockKey = $"{MasterKey}_locker_{NamespaceSeperator}{key}";
         var fencingKey = BuildFencingKey(MasterKey);
-        var fencingExpire = await GetFencingExpireAsync(MasterKey).ConfigureAwait(false);
+        var fencingExpire = await GetFencingExpireAsync(MasterKey, effectiveSlidingExpire).ConfigureAwait(false);
         using (new ProfileScope(this, lockKey))
         {
             return await Provider.AcquireLockAsync(lockKey, waitCancelToken, effectiveSlidingExpire, throwWhenTimeout, fencingKey, fencingExpire).ConfigureAwait(false);

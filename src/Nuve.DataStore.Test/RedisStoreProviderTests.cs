@@ -205,6 +205,39 @@ public class RedisStoreProviderTests
     }
 
     [TestMethod]
+    public void KeyValueStore_ParameterlessLock_ShouldBoundFencingCounterTtl_AndNotLeak()
+    {
+        var rootNamespace = DataStoreRuntime.Manager.GetConnection("redis").RootNamespace;
+
+        // Parameter-less store => DefaultExpire = 0, used purely as a mutex over an ephemeral,
+        // high-cardinality key that never holds data. Before the fix the fencing counter was
+        // created with no expiration (one permanent key per distinct resource => unbounded growth).
+        var store = new KeyValueStore();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+
+        var slidingExpire = TimeSpan.FromSeconds(4);
+        var fencingKey = $"{rootNamespace}:ChangeBookState:123:__fencing__:KeyValueStore";
+
+        using (var lockItem = store.AcquireLock(
+            "ChangeBookState:123",
+            throwWhenTimeout: true,
+            slidingExpire: slidingExpire,
+            waitCancelToken: cts.Token)!)
+        {
+            Assert.IsTrue(lockItem.FencingToken > 0);
+
+            // The counter must be bounded even though DefaultExpire = 0 and the resource key has no TTL.
+            Assert.IsTrue(WaitUntil(() => _provider.GetExpire(fencingKey) > TimeSpan.Zero, TimeSpan.FromSeconds(2)));
+            var fencingTtl = _provider.GetExpire(fencingKey);
+            Assert.IsNotNull(fencingTtl);
+            Assert.IsTrue(fencingTtl <= slidingExpire, $"fencing counter TTL should be bounded by slidingExpire; was {fencingTtl}");
+        }
+
+        // Once abandoned, the counter self-expires — no unbounded leak across distinct keys.
+        Assert.IsTrue(WaitUntil(() => _provider.GetExpire(fencingKey) == null, TimeSpan.FromSeconds(8)));
+    }
+
+    [TestMethod]
     public void HashStore_AcquireLock_ShouldUseMasterKeyScopedFencingCounters_AndAvoidSharedLeak()
     {
         var rootNamespace = DataStoreRuntime.Manager.GetConnection("redis").RootNamespace;

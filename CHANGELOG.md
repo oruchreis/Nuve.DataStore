@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.0.9] - 2026-07-20
+
+### Fixed
+- **Fencing counter leak for ephemeral lock keys:** When a store has `DefaultExpire=0` and the locked resource key has no live TTL (e.g. a parameter-less `KeyValueStore` used purely as a mutex over high-cardinality keys), `GetFencingExpire` returned `null`, which made the provider create the fencing counter with no expiration. Each distinct resource key left a permanent `__fencing__` counter, growing unbounded. `GetFencingExpire` now falls back to the lock's sliding expiration when the resource key has no positive TTL, so abandoned fencing counters self-expire while actively contended keys keep their counter alive (its TTL is refreshed on every acquire). This reverses the unconditional permanent-counter behavior introduced in v2.0.8 for keys without a TTL.
+
 ## [v2.0.8] - 2026-05-20
 
 ### Fixed

@@ -671,7 +671,7 @@ public class KeyValueStore : DataStoreBase
         var resourceKey = JoinWithRootNamespace(lockerKey);
         var lockKey = $"{resourceKey}{NamespaceSeperator}__lock__";
         var fencingKey = BuildFencingKey(resourceKey);
-        var fencingExpire = GetFencingExpire(resourceKey);
+        var fencingExpire = GetFencingExpire(resourceKey, effectiveSlidingExpire);
         using (new ProfileScope(this, lockerKey))
         {
             Provider.Lock(lockKey, waitTimeout, action, effectiveSlidingExpire, skipWhenTimeout, throwWhenTimeout, fencingKey, fencingExpire);
@@ -698,7 +698,7 @@ public class KeyValueStore : DataStoreBase
         var resourceKey = JoinWithRootNamespace(lockerKey);
         var lockKey = $"{resourceKey}{NamespaceSeperator}__lock__";
         var fencingKey = BuildFencingKey(resourceKey);
-        var fencingExpire = GetFencingExpire(resourceKey);
+        var fencingExpire = GetFencingExpire(resourceKey, effectiveSlidingExpire);
         return Provider.AcquireLock(lockKey, waitCancelToken, effectiveSlidingExpire, throwWhenTimeout, fencingKey, fencingExpire);
     }
 
@@ -718,7 +718,7 @@ public class KeyValueStore : DataStoreBase
         var resourceKey = JoinWithRootNamespace(lockerKey);
         var lockKey = $"{resourceKey}{NamespaceSeperator}__lock__";
         var fencingKey = BuildFencingKey(resourceKey);
-        var fencingExpire = await GetFencingExpireAsync(resourceKey).ConfigureAwait(false);
+        var fencingExpire = await GetFencingExpireAsync(resourceKey, effectiveSlidingExpire).ConfigureAwait(false);
         using (new ProfileScope(this, lockerKey))
         {
             await Provider.LockAsync(lockKey, waitTimeout, actionAsync, effectiveSlidingExpire, skipWhenTimeout, throwWhenTimeout, fencingKey, fencingExpire).ConfigureAwait(false);
@@ -744,7 +744,7 @@ public class KeyValueStore : DataStoreBase
         var resourceKey = JoinWithRootNamespace(lockerKey);
         var lockKey = $"{resourceKey}{NamespaceSeperator}__lock__";
         var fencingKey = BuildFencingKey(resourceKey);
-        var fencingExpire = await GetFencingExpireAsync(resourceKey).ConfigureAwait(false);
+        var fencingExpire = await GetFencingExpireAsync(resourceKey, effectiveSlidingExpire).ConfigureAwait(false);
         return await Provider.AcquireLockAsync(lockKey, waitCancelToken, effectiveSlidingExpire, throwWhenTimeout, fencingKey, fencingExpire).ConfigureAwait(false);
     }
 

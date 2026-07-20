@@ -186,18 +186,22 @@ public abstract class DataStoreBase
         return $"{resourceKey}{NamespaceSeperator}__fencing__{NamespaceSeperator}{TypeName}";
     }
 
-    protected virtual TimeSpan? GetFencingExpire(string resourceKey)
+    protected virtual TimeSpan? GetFencingExpire(string resourceKey, TimeSpan slidingExpire)
     {
-        return DefaultExpire > TimeSpan.Zero
-            ? DefaultExpire
-            : Provider.GetExpire(resourceKey);
+        if (DefaultExpire > TimeSpan.Zero)
+            return DefaultExpire;
+
+        var resourceExpire = Provider.GetExpire(resourceKey);
+        return resourceExpire > TimeSpan.Zero ? resourceExpire : slidingExpire;
     }
 
-    protected virtual async Task<TimeSpan?> GetFencingExpireAsync(string resourceKey)
+    protected virtual async Task<TimeSpan?> GetFencingExpireAsync(string resourceKey, TimeSpan slidingExpire)
     {
-        return DefaultExpire > TimeSpan.Zero
-            ? DefaultExpire
-            : await Provider.GetExpireAsync(resourceKey).ConfigureAwait(false);
+        if (DefaultExpire > TimeSpan.Zero)
+            return DefaultExpire;
+
+        var resourceExpire = await Provider.GetExpireAsync(resourceKey).ConfigureAwait(false);
+        return resourceExpire > TimeSpan.Zero ? resourceExpire : slidingExpire;
     }
 
     private DataStoreConnectionContext GetContext()
