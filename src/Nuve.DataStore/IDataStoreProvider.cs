@@ -56,16 +56,18 @@ namespace Nuve.DataStore
         /// </summary>
         /// <param name="key">The key whose expiration time is to be set. Cannot be null or empty.</param>
         /// <param name="expire">The time interval after which the key will expire. Must be greater than <see cref="TimeSpan.Zero"/>.</param>
+        /// <param name="onlyWhenMissing">When true, the expiration is applied only if the key currently has no expiration, so an existing TTL is never extended.</param>
         /// <returns>true if the expiration was successfully set; otherwise, false.</returns>
-        bool SetExpire(string key, TimeSpan expire);
+        bool SetExpire(string key, TimeSpan expire, bool onlyWhenMissing = false);
         /// <summary>
         /// Asynchronously sets the expiration time for the specified key.
         /// </summary>
         /// <param name="key">The key whose expiration time is to be set. Cannot be null or empty.</param>
         /// <param name="expire">The duration after which the key will expire and be removed. Must be a positive time span.</param>
+        /// <param name="onlyWhenMissing">When true, the expiration is applied only if the key currently has no expiration, so an existing TTL is never extended.</param>
         /// <returns>A task that represents the asynchronous operation. The task result is <see langword="true"/> if the
         /// expiration was set successfully; otherwise, <see langword="false"/>.</returns>
-        Task<bool> SetExpireAsync(string key, TimeSpan expire);
+        Task<bool> SetExpireAsync(string key, TimeSpan expire, bool onlyWhenMissing = false);
         /// <summary>
         /// Removes the value associated with the specified key from the data store.
         /// </summary>

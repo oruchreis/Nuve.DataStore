@@ -54,38 +54,38 @@ public partial class RedisStoreProvider : IDictionaryStoreProvider
         }))!;
     }
 
-    bool IDictionaryStoreProvider.Set(string dictKey, string itemKey, byte[] itemValue, bool overwrite, TimeSpan? expire)
+    bool IDictionaryStoreProvider.Set(string dictKey, string itemKey, byte[] itemValue, bool overwrite, TimeSpan? expire, bool onlyWhenMissing)
     {
         return RedisCall(Db =>
         {
             if (expire != null)
                 return ExecuteTransaction(Db, tran =>
-                    tran.HashSetAsync(dictKey, itemKey, itemValue, overwrite ? When.Always : When.NotExists), dictKey, expire);
+                    tran.HashSetAsync(dictKey, itemKey, itemValue, overwrite ? When.Always : When.NotExists), dictKey, expire, onlyWhenMissing);
 
             return Db.HashSet(dictKey, itemKey, itemValue, overwrite ? When.Always : When.NotExists);
         });
     }
 
-    async Task<bool> IDictionaryStoreProvider.SetAsync(string dictKey, string itemKey, byte[] itemValue, bool overwrite, TimeSpan? expire)
+    async Task<bool> IDictionaryStoreProvider.SetAsync(string dictKey, string itemKey, byte[] itemValue, bool overwrite, TimeSpan? expire, bool onlyWhenMissing)
     {
         return (await RedisCallAsync(async Db =>
         {
             if (expire != null)
                 return await ExecuteTransactionAsync(Db, tran =>
-                    tran.HashSetAsync(dictKey, itemKey, itemValue, overwrite ? When.Always : When.NotExists), dictKey, expire).ConfigureAwait(false);
+                    tran.HashSetAsync(dictKey, itemKey, itemValue, overwrite ? When.Always : When.NotExists), dictKey, expire, onlyWhenMissing).ConfigureAwait(false);
 
             return await Db.HashSetAsync(dictKey, itemKey, itemValue, overwrite ? When.Always : When.NotExists).ConfigureAwait(false);
         }))!;
     }
 
-    void IDictionaryStoreProvider.Set(string dictKey, IDictionary<string, byte[]> keyValues, TimeSpan? expire)
+    void IDictionaryStoreProvider.Set(string dictKey, IDictionary<string, byte[]> keyValues, TimeSpan? expire, bool onlyWhenMissing)
     {
         RedisCall(Db =>
         {
             var entries = keyValues.Select(kv => new HashEntry(kv.Key, kv.Value)).ToArray();
             if (expire != null)
             {
-                ExecuteTransaction(Db, tran => tran.HashSetAsync(dictKey, entries), dictKey, expire);
+                ExecuteTransaction(Db, tran => tran.HashSetAsync(dictKey, entries), dictKey, expire, onlyWhenMissing);
                 return;
             }
 
@@ -93,14 +93,14 @@ public partial class RedisStoreProvider : IDictionaryStoreProvider
         });
     }
 
-    async Task IDictionaryStoreProvider.SetAsync(string dictKey, IDictionary<string, byte[]> keyValues, TimeSpan? expire)
+    async Task IDictionaryStoreProvider.SetAsync(string dictKey, IDictionary<string, byte[]> keyValues, TimeSpan? expire, bool onlyWhenMissing)
     {
         await RedisCallAsync(async Db =>
         {
             var entries = keyValues.Select(kv => new HashEntry(kv.Key, kv.Value)).ToArray();
             if (expire != null)
             {
-                await ExecuteTransactionAsync(Db, tran => tran.HashSetAsync(dictKey, entries), dictKey, expire).ConfigureAwait(false);
+                await ExecuteTransactionAsync(Db, tran => tran.HashSetAsync(dictKey, entries), dictKey, expire, onlyWhenMissing).ConfigureAwait(false);
                 return;
             }
 
@@ -201,23 +201,23 @@ public partial class RedisStoreProvider : IDictionaryStoreProvider
         }))!;
     }
 
-    long IDictionaryStoreProvider.Increment(string dictKey, string itemKey, long value, TimeSpan? expire)
+    long IDictionaryStoreProvider.Increment(string dictKey, string itemKey, long value, TimeSpan? expire, bool onlyWhenMissing)
     {
         return RedisCall(Db =>
         {
             if (expire != null)
-                return ExecuteTransaction(Db, tran => tran.HashIncrementAsync(dictKey, itemKey, value), dictKey, expire);
+                return ExecuteTransaction(Db, tran => tran.HashIncrementAsync(dictKey, itemKey, value), dictKey, expire, onlyWhenMissing);
 
             return Db.HashIncrement(dictKey, itemKey, value);
         });
     }
 
-    async Task<long> IDictionaryStoreProvider.IncrementAsync(string dictKey, string itemKey, long value, TimeSpan? expire)
+    async Task<long> IDictionaryStoreProvider.IncrementAsync(string dictKey, string itemKey, long value, TimeSpan? expire, bool onlyWhenMissing)
     {
         return (await RedisCallAsync(async Db =>
         {
             if (expire != null)
-                return await ExecuteTransactionAsync(Db, tran => tran.HashIncrementAsync(dictKey, itemKey, value), dictKey, expire).ConfigureAwait(false);
+                return await ExecuteTransactionAsync(Db, tran => tran.HashIncrementAsync(dictKey, itemKey, value), dictKey, expire, onlyWhenMissing).ConfigureAwait(false);
 
             return await Db.HashIncrementAsync(dictKey, itemKey, value).ConfigureAwait(false);
         }))!;

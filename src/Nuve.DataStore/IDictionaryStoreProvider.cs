@@ -14,9 +14,9 @@ namespace Nuve.DataStore
 
         Task<IDictionary<string, byte[]>> GetAsync(string dictKey, params string[] itemKeys);
 
-        Task<bool> SetAsync(string dictKey, string itemKey, byte[] itemValue, bool overwrite, TimeSpan? expire = null);
+        Task<bool> SetAsync(string dictKey, string itemKey, byte[] itemValue, bool overwrite, TimeSpan? expire = null, bool onlyWhenMissing = false);
 
-        Task SetAsync(string dictKey, IDictionary<string, byte[]> keyValues, TimeSpan? expire = null);
+        Task SetAsync(string dictKey, IDictionary<string, byte[]> keyValues, TimeSpan? expire = null, bool onlyWhenMissing = false);
 
         Task<long> RemoveAsync(string dictKey, params string[] itemKeys);
 
@@ -30,7 +30,7 @@ namespace Nuve.DataStore
 
         Task<IList<byte[]>> ValuesAsync(string dictKey);
 
-        Task<long> IncrementAsync(string dictKey, string itemKey, long value, TimeSpan? expire = null);
+        Task<long> IncrementAsync(string dictKey, string itemKey, long value, TimeSpan? expire = null, bool onlyWhenMissing = false);
 
         Task<long> SizeInBytesAsync(string dictKey, string itemKey);
 
@@ -42,9 +42,9 @@ namespace Nuve.DataStore
 
         IDictionary<string, byte[]> Get(string dictKey, params string[] itemKeys);
 
-        bool Set(string dictKey, string itemKey, byte[] itemValue, bool overwrite, TimeSpan? expire = null);
+        bool Set(string dictKey, string itemKey, byte[] itemValue, bool overwrite, TimeSpan? expire = null, bool onlyWhenMissing = false);
 
-        void Set(string dictKey, IDictionary<string, byte[]> keyValues, TimeSpan? expire = null);
+        void Set(string dictKey, IDictionary<string, byte[]> keyValues, TimeSpan? expire = null, bool onlyWhenMissing = false);
 
         long Remove(string dictKey, params string[] itemKeys);
 
@@ -58,7 +58,7 @@ namespace Nuve.DataStore
 
         IList<byte[]> Values(string dictKey);
 
-        long Increment(string dictKey, string itemKey, long value, TimeSpan? expire = null);
+        long Increment(string dictKey, string itemKey, long value, TimeSpan? expire = null, bool onlyWhenMissing = false);
 
         long SizeInBytes(string dictKey, string itemKey);
 

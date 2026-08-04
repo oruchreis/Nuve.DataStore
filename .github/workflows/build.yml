@@ -4,22 +4,36 @@ on:
   push:
     branches: [ master ]
     paths:
+      # Anything that can change what is built or how it behaves has to reach the test jobs,
+      # otherwise a source-only push would land on master without ever being tested.
+      - 'src/**.cs'
       - 'src/**.csproj'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'test.runsettings'
       - '.github/workflows/build.yml'
   pull_request:
     branches: [ master ]
 
 jobs:
   test-net8:
+    name: test-net8 (redis ${{ matrix.redis }})
     runs-on: ubuntu-latest
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_NOLOGO: 1
+    strategy:
+      # Both server generations must report, so one failing version does not hide the other.
+      fail-fast: false
+      matrix:
+        # Conditional expiration uses the native PEXPIRE ... NX from Redis 7.0 on and an
+        # equivalent script before it. Both code paths have to run the suite.
+        redis: [ '6', '7.4' ]
     services:
       # Label used to access the service container
       redis:
         # Docker Hub image
-        image: redis
+        image: redis:${{ matrix.redis }}
         # Set health checks to wait until redis has started
         options: >-
           --health-cmd "redis-cli ping"

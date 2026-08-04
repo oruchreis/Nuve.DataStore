@@ -125,7 +125,7 @@ public sealed class HashStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            var result = await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, key, AsValue(value), overwrite, AutoExpire));
+            var result = await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, key, AsValue(value), overwrite, AutoExpire, ExpireOnlyWhenMissing));
             return result;
         }
     }
@@ -258,7 +258,7 @@ public sealed class HashStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            var result = await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, key, AsValue(value), overwrite, AutoExpire));
+            var result = await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, key, AsValue(value), overwrite, AutoExpire, ExpireOnlyWhenMissing));
             return result;
         }
     }
@@ -274,7 +274,7 @@ public sealed class HashStore : DataStoreBase
     {
         using (new ProfileScope(this, MasterKey))
         {
-            await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, AsKeyValue(keyValues, serializeParallel, parallelOptions), AutoExpire));
+            await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, AsKeyValue(keyValues, serializeParallel, parallelOptions), AutoExpire, ExpireOnlyWhenMissing));
         }
     }
 
@@ -351,7 +351,7 @@ public sealed class HashStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            var result = await CheckAutoPing(async () => await _dictionaryStoreProvider.IncrementAsync(MasterKey, key, value, AutoExpire));
+            var result = await CheckAutoPing(async () => await _dictionaryStoreProvider.IncrementAsync(MasterKey, key, value, AutoExpire, ExpireOnlyWhenMissing));
             return result;
         }
     }
@@ -504,7 +504,7 @@ public sealed class HashStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            var result = CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, key, AsValue(value), overwrite, AutoExpire));
+            var result = CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, key, AsValue(value), overwrite, AutoExpire, ExpireOnlyWhenMissing));
             return result;
         }
     }
@@ -635,7 +635,7 @@ public sealed class HashStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            var result = CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, key, AsValue(value), overwrite, AutoExpire));
+            var result = CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, key, AsValue(value), overwrite, AutoExpire, ExpireOnlyWhenMissing));
             return result;
         }
     }
@@ -651,7 +651,7 @@ public sealed class HashStore : DataStoreBase
     {
         using (new ProfileScope(this, MasterKey))
         {
-            CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, AsKeyValue(keyValues, serializeParallel, parallelOptions), AutoExpire));
+            CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, AsKeyValue(keyValues, serializeParallel, parallelOptions), AutoExpire, ExpireOnlyWhenMissing));
         }
     }
 
@@ -729,7 +729,7 @@ public sealed class HashStore : DataStoreBase
     {
         using (new ProfileScope(this, key))
         {
-            var result = CheckAutoPing(() => _dictionaryStoreProvider.Increment(MasterKey, key, value, AutoExpire));
+            var result = CheckAutoPing(() => _dictionaryStoreProvider.Increment(MasterKey, key, value, AutoExpire, ExpireOnlyWhenMissing));
             return result;
         }
     }
@@ -771,7 +771,7 @@ public sealed class HashStore : DataStoreBase
             if (dump.Length == 0)
                 return;
             await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, SingleResult<Dictionary<string, byte[]>>(dump) 
-                ?? throw new InvalidOperationException($"Couldn't deserialize the dumped data, be sure the '{nameof(dump)}' parameter is valid."), AutoExpire));
+                ?? throw new InvalidOperationException($"Couldn't deserialize the dumped data, be sure the '{nameof(dump)}' parameter is valid."), AutoExpire, ExpireOnlyWhenMissing));
         }
     }
 }

@@ -11,11 +11,11 @@ namespace Nuve.DataStore
 
         Task<IList<byte[]>> GetRangeAsync(string listKey, long start, long end);
 
-        Task SetAsync(string listKey, long index, byte[] value, TimeSpan? expire = null);
+        Task SetAsync(string listKey, long index, byte[] value, TimeSpan? expire = null, bool onlyWhenMissing = false);
 
-        Task<long> AddFirstAsync(string listKey, TimeSpan? expire = null, params byte[][] value);
+        Task<long> AddFirstAsync(string listKey, TimeSpan? expire = null, bool onlyWhenMissing = false, params byte[][] value);
 
-        Task<long> AddLastAsync(string listKey, TimeSpan? expire = null, params byte[][] value);
+        Task<long> AddLastAsync(string listKey, TimeSpan? expire = null, bool onlyWhenMissing = false, params byte[][] value);
 
         Task<long> AddAfterAsync(string listKey, byte[] pivot, byte[] value);
 
@@ -37,11 +37,11 @@ namespace Nuve.DataStore
         
         IList<byte[]> GetRange(string listKey, long start, long end);
         
-        void Set(string listKey, long index, byte[] value, TimeSpan? expire = null);
+        void Set(string listKey, long index, byte[] value, TimeSpan? expire = null, bool onlyWhenMissing = false);
 
-        long AddFirst(string listKey, TimeSpan? expire = null, params byte[][] value);
+        long AddFirst(string listKey, TimeSpan? expire = null, bool onlyWhenMissing = false, params byte[][] value);
 
-        long AddLast(string listKey, TimeSpan? expire = null, params byte[][] value);
+        long AddLast(string listKey, TimeSpan? expire = null, bool onlyWhenMissing = false, params byte[][] value);
         
         long AddAfter(string listKey, byte[] pivot, byte[] value);
         

@@ -24,8 +24,15 @@ public partial class RedisStoreProvider : IKeyValueStoreProvider
     {
         return RedisCall(Db =>
         {
-            var values = Db.StringGet(keys.Select(item => (RedisKey)item).ToArray());
-            return keys.Zip(values, (k, v) => new { k, v }).ToDictionary(kv => kv.k, kv => (byte[])kv.v!);
+            var result = new Dictionary<string, byte[]>(keys.Length);
+
+            foreach (var batch in BatchKeysPerRequest(Db, keys))
+            {
+                var values = Db.StringGet(batch.Select(item => (RedisKey)item).ToArray());
+                CollectValues(result, batch, values);
+            }
+
+            return result;
         })!;
     }
 
@@ -33,39 +40,123 @@ public partial class RedisStoreProvider : IKeyValueStoreProvider
     {
         return (await RedisCallAsync(async Db =>
         {
-            var values = await Db.StringGetAsync(keys.Select(item => (RedisKey)item).ToArray());
-            return keys.Zip(values, (k, v) => new { k, v }).ToDictionary(kv => kv.k, kv => (byte[])kv.v!);
+            var result = new Dictionary<string, byte[]>(keys.Length);
+
+            foreach (var batch in BatchKeysPerRequest(Db, keys))
+            {
+                var values = await Db.StringGetAsync(batch.Select(item => (RedisKey)item).ToArray()).ConfigureAwait(false);
+                CollectValues(result, batch, values);
+            }
+
+            return result;
         }))!;
     }
 
-    bool IKeyValueStoreProvider.Set(string key, byte[] entity, bool overwrite, TimeSpan? expire)
+    private static void CollectValues(Dictionary<string, byte[]> result, string[] keys, RedisValue[] values)
     {
-        return RedisCall(Db =>
+        for (var index = 0; index < keys.Length; index++)
         {
-            return Db.StringSet(key, entity, expiry: expire, when: overwrite ? When.Always : When.NotExists);
-        });
+            result[keys[index]] = (byte[])values[index]!;
+        }
     }
 
-    async Task<bool> IKeyValueStoreProvider.SetAsync(string key, byte[] entity, bool overwrite, TimeSpan? expire)
+    /// <summary>
+    /// Splits the keys into the batches that may travel in one command. A server that accepts a
+    /// cross-slot request takes them all at once; otherwise each slot is requested on its own.
+    /// </summary>
+    private IEnumerable<string[]> BatchKeysPerRequest(IDatabase database, string[] keys)
     {
-        return (await RedisCallAsync(async Db => { return await Db.StringSetAsync(key, entity, expiry: expire, when: overwrite ? When.Always : When.NotExists); }))!;
+        if (keys.Length <= 1 || EnsureCapabilities(database.Multiplexer).SupportsCrossSlotMultiKey)
+            return [keys];
+
+        return keys.GroupBy(RedisHashSlot.Of).Select(group => group.ToArray());
+    }
+
+    /// <summary>
+    /// Splits the pairs into the batches that may travel in one command. A server that accepts a
+    /// cross-slot write takes them all at once, keeping the write atomic; otherwise the write is
+    /// atomic per slot but no longer as a whole, which is what makes it work on a sharded deployment.
+    /// </summary>
+    private IEnumerable<KeyValuePair<RedisKey, RedisValue>[]> BatchPairsPerRequest(
+        IDatabase database, IDictionary<string, byte[]> keyValues)
+    {
+        var pairs = keyValues
+            .Select(kv => new KeyValuePair<RedisKey, RedisValue>(kv.Key, kv.Value))
+            .ToArray();
+
+        if (pairs.Length <= 1 || EnsureCapabilities(database.Multiplexer).SupportsCrossSlotMultiKey)
+            return [pairs];
+
+        return pairs.GroupBy(pair => RedisHashSlot.Of(pair.Key!)).Select(group => group.ToArray());
+    }
+
+    bool IKeyValueStoreProvider.Set(string key, byte[] entity, bool overwrite, TimeSpan? expire, bool onlyWhenMissing)
+    {
+        if (expire == null || !onlyWhenMissing)
+        {
+            return RedisCall(Db =>
+            {
+                return Db.StringSet(key, entity, expiry: expire, when: overwrite ? When.Always : When.NotExists);
+            });
+        }
+
+        return RedisCall(Db => AsValueWritten(
+            Db.ScriptEvaluate(LuaCommands.SetKeepingTtl, [key], SetKeepingTtlArgs(entity, expire.Value, overwrite))));
+    }
+
+    async Task<bool> IKeyValueStoreProvider.SetAsync(string key, byte[] entity, bool overwrite, TimeSpan? expire, bool onlyWhenMissing)
+    {
+        if (expire == null || !onlyWhenMissing)
+        {
+            return (await RedisCallAsync(async Db => { return await Db.StringSetAsync(key, entity, expiry: expire, when: overwrite ? When.Always : When.NotExists); }))!;
+        }
+
+        return await RedisCallAsync(async Db => AsValueWritten(
+            await Db.ScriptEvaluateAsync(LuaCommands.SetKeepingTtl, [key], SetKeepingTtlArgs(entity, expire.Value, overwrite))
+                .ConfigureAwait(false))).ConfigureAwait(false);
+    }
+
+    private static RedisValue[] SetKeepingTtlArgs(byte[] entity, TimeSpan expire, bool overwrite)
+    {
+        return [entity, (long)expire.TotalMilliseconds, overwrite ? "0" : "1"];
+    }
+
+    private static bool AsValueWritten(RedisResult result)
+    {
+        return !result.IsNull && (long)result == 1;
     }
 
     bool IKeyValueStoreProvider.SetAll(IDictionary<string, byte[]> keyValues, bool overwrite)
     {
+        var when = overwrite ? When.Always : When.NotExists;
+
         return RedisCall(Db =>
         {
-            return Db.StringSet(keyValues.Select(kv => new KeyValuePair<RedisKey, RedisValue>(kv.Key, kv.Value)).ToArray(),
-            overwrite ? When.Always : When.NotExists);
+            var applied = true;
+
+            foreach (var batch in BatchPairsPerRequest(Db, keyValues))
+            {
+                applied &= Db.StringSet(batch, when);
+            }
+
+            return applied;
         });
     }
 
     async Task<bool> IKeyValueStoreProvider.SetAllAsync(IDictionary<string, byte[]> keyValues, bool overwrite)
     {
+        var when = overwrite ? When.Always : When.NotExists;
+
         return await RedisCallAsync(async Db =>
         {
-            return await Db.StringSetAsync(keyValues.Select(kv => new KeyValuePair<RedisKey, RedisValue>(kv.Key, kv.Value)).ToArray(),
-            overwrite ? When.Always : When.NotExists);
+            var applied = true;
+
+            foreach (var batch in BatchPairsPerRequest(Db, keyValues))
+            {
+                applied &= await Db.StringSetAsync(batch, when).ConfigureAwait(false);
+            }
+
+            return applied;
         });
     }
 

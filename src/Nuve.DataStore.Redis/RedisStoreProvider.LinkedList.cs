@@ -49,13 +49,13 @@ public partial class RedisStoreProvider : ILinkedListStoreProvider
         }))!;
     }
 
-    void ILinkedListStoreProvider.Set(string listKey, long index, byte[] value, TimeSpan? expire)
+    void ILinkedListStoreProvider.Set(string listKey, long index, byte[] value, TimeSpan? expire, bool onlyWhenMissing)
     {
         RedisCall(Db =>
         {
             if (expire != null)
             {
-                ExecuteTransaction(Db, tran => tran.ListSetByIndexAsync(listKey, index, value), listKey, expire);
+                ExecuteTransaction(Db, tran => tran.ListSetByIndexAsync(listKey, index, value), listKey, expire, onlyWhenMissing);
                 return;
             }
 
@@ -63,13 +63,13 @@ public partial class RedisStoreProvider : ILinkedListStoreProvider
         });
     }
 
-    async Task ILinkedListStoreProvider.SetAsync(string listKey, long index, byte[] value, TimeSpan? expire)
+    async Task ILinkedListStoreProvider.SetAsync(string listKey, long index, byte[] value, TimeSpan? expire, bool onlyWhenMissing)
     {
         await RedisCallAsync(async Db =>
         {
             if (expire != null)
             {
-                await ExecuteTransactionAsync(Db, tran => tran.ListSetByIndexAsync(listKey, index, value), listKey, expire).ConfigureAwait(false);
+                await ExecuteTransactionAsync(Db, tran => tran.ListSetByIndexAsync(listKey, index, value), listKey, expire, onlyWhenMissing).ConfigureAwait(false);
                 return;
             }
 
@@ -77,45 +77,45 @@ public partial class RedisStoreProvider : ILinkedListStoreProvider
         });
     }
 
-    long ILinkedListStoreProvider.AddFirst(string listKey, TimeSpan? expire, params byte[][] value)
+    long ILinkedListStoreProvider.AddFirst(string listKey, TimeSpan? expire, bool onlyWhenMissing, params byte[][] value)
     {
         return RedisCall(Db =>
         {
             if (expire != null)
-                return ExecuteTransaction(Db, tran => tran.ListLeftPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()), listKey, expire);
+                return ExecuteTransaction(Db, tran => tran.ListLeftPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()), listKey, expire, onlyWhenMissing);
 
             return Db.ListLeftPush(listKey, value.Select(item => (RedisValue)item).ToArray());
         });
     }
 
-    async Task<long> ILinkedListStoreProvider.AddFirstAsync(string listKey, TimeSpan? expire, params byte[][] value)
+    async Task<long> ILinkedListStoreProvider.AddFirstAsync(string listKey, TimeSpan? expire, bool onlyWhenMissing, params byte[][] value)
     {
         return (await RedisCallAsync(async Db =>
         {
             if (expire != null)
-                return await ExecuteTransactionAsync(Db, tran => tran.ListLeftPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()), listKey, expire).ConfigureAwait(false);
+                return await ExecuteTransactionAsync(Db, tran => tran.ListLeftPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()), listKey, expire, onlyWhenMissing).ConfigureAwait(false);
 
             return await Db.ListLeftPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()).ConfigureAwait(false);
         }))!;
     }
 
-    long ILinkedListStoreProvider.AddLast(string listKey, TimeSpan? expire, params byte[][] value)
+    long ILinkedListStoreProvider.AddLast(string listKey, TimeSpan? expire, bool onlyWhenMissing, params byte[][] value)
     {
         return RedisCall(Db =>
         {
             if (expire != null)
-                return ExecuteTransaction(Db, tran => tran.ListRightPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()), listKey, expire);
+                return ExecuteTransaction(Db, tran => tran.ListRightPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()), listKey, expire, onlyWhenMissing);
 
             return Db.ListRightPush(listKey, value.Select(item => (RedisValue)item).ToArray());
         });
     }
 
-    async Task<long> ILinkedListStoreProvider.AddLastAsync(string listKey, TimeSpan? expire, params byte[][] value)
+    async Task<long> ILinkedListStoreProvider.AddLastAsync(string listKey, TimeSpan? expire, bool onlyWhenMissing, params byte[][] value)
     {
         return (await RedisCallAsync(async Db =>
         {
             if (expire != null)
-                return await ExecuteTransactionAsync(Db, tran => tran.ListRightPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()), listKey, expire).ConfigureAwait(false);
+                return await ExecuteTransactionAsync(Db, tran => tran.ListRightPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()), listKey, expire, onlyWhenMissing).ConfigureAwait(false);
 
             return await Db.ListRightPushAsync(listKey, value.Select(item => (RedisValue)item).ToArray()).ConfigureAwait(false);
         }))!;

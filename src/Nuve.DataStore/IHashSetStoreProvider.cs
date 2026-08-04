@@ -7,7 +7,7 @@ namespace Nuve.DataStore
     {
         Task<bool> IsExistsAsync(string hashSetKey);
 
-        Task<long> AddAsync(string hashSetKey, TimeSpan? expire = null, params byte[][] values);
+        Task<long> AddAsync(string hashSetKey, TimeSpan? expire = null, bool onlyWhenMissing = false, params byte[][] values);
 
         Task<long> CountAsync(string hashSetKey);
 
@@ -34,7 +34,7 @@ namespace Nuve.DataStore
 
         bool IsExists(string hashSetKey);
 
-        long Add(string hashSetKey, TimeSpan? expire = null, params byte[][] values);
+        long Add(string hashSetKey, TimeSpan? expire = null, bool onlyWhenMissing = false, params byte[][] values);
 
         long Count(string hashSetKey);
 

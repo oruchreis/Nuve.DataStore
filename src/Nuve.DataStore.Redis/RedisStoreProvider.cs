@@ -40,6 +40,145 @@ public partial class RedisStoreProvider : IDataStoreProvider
     private ConnectionOptions? _options;
     private IRedisConnectionManager? _connectionManager;
     private string? _connectionString;
+    private RedisServerCapabilities? _capabilities;
+
+    /// <summary>
+    /// Capabilities of the connected server. Reports <see cref="RedisServerCapabilities.Unknown"/>
+    /// while the server has not answered yet, so the portable command path is used until it does.
+    /// </summary>
+    public RedisServerCapabilities Capabilities =>
+        Volatile.Read(ref _capabilities) ?? RedisServerCapabilities.Unknown;
+
+#if TEST
+    /// <summary>
+    /// Replaces the detected capabilities so a topology that is not available locally,
+    /// such as one that refuses cross-slot commands, can still be exercised by tests.
+    /// </summary>
+    internal void OverrideCapabilitiesForTests(bool crossSlotMultiKey)
+    {
+        var detected = Capabilities;
+        Volatile.Write(ref _capabilities, new RedisServerCapabilities(
+            detected.ServerVersion,
+            detected.ServerType,
+            detected.SupportsScripting,
+            detected.SupportsSetKeepTtl,
+            crossSlotMultiKey));
+    }
+#endif
+
+    private RedisServerCapabilities EnsureCapabilities(IConnectionMultiplexer multiplexer)
+    {
+        var cached = Volatile.Read(ref _capabilities);
+        if (cached != null)
+            return cached;
+
+        var resolved = TryResolveCapabilities(multiplexer);
+        if (resolved == null)
+            return RedisServerCapabilities.Unknown;
+
+        Volatile.Write(ref _capabilities, resolved);
+        return resolved;
+    }
+
+    private static RedisServerCapabilities? TryResolveCapabilities(IConnectionMultiplexer multiplexer)
+    {
+        foreach (var endpoint in multiplexer.GetEndPoints())
+        {
+            try
+            {
+                var server = multiplexer.GetServer(endpoint);
+                if (!server.IsConnected)
+                    continue;
+
+                var features = server.Features;
+                return new RedisServerCapabilities(
+                    server.Version,
+                    server.ServerType,
+                    features.Scripting,
+                    features.SetKeepTtl,
+                    ProbeCrossSlotMultiKey(multiplexer));
+            }
+            catch (Exception)
+            {
+                // An endpoint that cannot answer must not stop the remaining ones from being asked.
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Hash tags chosen so the two keys land on different slots, which is what makes this a
+    /// cross-slot write. <c>ProbeKeysShouldBeOnDifferentSlots</c> guards that property.
+    /// </summary>
+    internal static readonly RedisKey CrossSlotProbeFirstKey = "{nuve-datastore-probe-a}:__crossslot__";
+    internal static readonly RedisKey CrossSlotProbeSecondKey = "{nuve-datastore-probe-b}:__crossslot__";
+
+    /// <summary>
+    /// Measures whether one write may span several slots by attempting exactly that. Deriving it from
+    /// the endpoint is not enough, so the server is asked to perform the operation in question and the
+    /// refusal is taken as the answer. A refusal for any other reason is equally safe to act on,
+    /// because grouping keys per slot works on every deployment.
+    /// </summary>
+    private static bool ProbeCrossSlotMultiKey(IConnectionMultiplexer multiplexer)
+    {
+        var database = multiplexer.GetDatabase();
+
+        try
+        {
+            return database.StringSet(
+            [
+                new(CrossSlotProbeFirstKey, RedisValue.EmptyString),
+                new(CrossSlotProbeSecondKey, RedisValue.EmptyString)
+            ]);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+        finally
+        {
+            // Deleted one by one, since a multi-key delete would hit the same restriction being probed.
+            TryDeleteProbeKey(database, CrossSlotProbeFirstKey);
+            TryDeleteProbeKey(database, CrossSlotProbeSecondKey);
+        }
+    }
+
+    private static void TryDeleteProbeKey(IDatabase database, RedisKey key)
+    {
+        try
+        {
+            database.KeyDelete(key);
+        }
+        catch (Exception)
+        {
+            // intentionally supressed
+        }
+    }
+
+    /// <summary>
+    /// Fails with a message naming the offending keys when the server refuses a command that spans
+    /// slots. Unlike a plain multi-key read or write, a set combination cannot be split per slot,
+    /// so the caller has to place the keys together on purpose.
+    /// </summary>
+    private void EnsureKeysShareOneSlot(IDatabase database, string operation, params string[] keys)
+    {
+        if (keys.Length <= 1 || EnsureCapabilities(database.Multiplexer).SupportsCrossSlotMultiKey)
+            return;
+
+        var placements = keys.Distinct().Select(key => new { Key = key, Slot = RedisHashSlot.Of(key) }).ToArray();
+        var slotCount = placements.Select(placement => placement.Slot).Distinct().Count();
+        if (slotCount <= 1)
+            return;
+
+        var detail = string.Join(", ", placements.Select(placement => $"'{placement.Key}' is on slot {placement.Slot}"));
+
+        throw new InvalidOperationException(
+            $"{operation} requires every key to be on a single cluster slot, but the given keys are spread over {slotCount} slots: {detail}. " +
+            "This server rejects a command that spans slots, and a set combination cannot be split per slot the way a plain " +
+            "multi-key read or write can. Store the keys together by giving them a shared hash tag, " +
+            "for example '{tenant-1}:orders' and '{tenant-1}:orders-archive' both live on the slot of 'tenant-1'.");
+    }
 
     internal T RedisCall<T>(Func<IDatabase, T> callFunction, int retryCount = 0, List<Exception>? exceptions = null)
     {
@@ -231,14 +370,30 @@ public partial class RedisStoreProvider : IDataStoreProvider
         }
     }
 
-    internal static T ExecuteTransaction<T>(IDatabase database, Func<ITransaction, Task<T>> actionFactory, RedisKey key, TimeSpan? expire)
+    /// <summary>
+    /// Queues the expiration command that accompanies a write inside the same transaction.
+    /// When <paramref name="onlyWhenMissing"/> is set the expiration must leave an already expiring
+    /// key untouched, which servers before Redis 7.0 can only express through a script.
+    /// </summary>
+    private Task ApplyExpire(IDatabase database, ITransaction transaction, RedisKey key, TimeSpan expire, bool onlyWhenMissing)
+    {
+        if (!onlyWhenMissing)
+            return transaction.KeyExpireAsync(key, expire);
+
+        if (EnsureCapabilities(database.Multiplexer).SupportsExpireOptions)
+            return transaction.KeyExpireAsync(key, expire, ExpireWhen.HasNoExpiry);
+
+        return transaction.ScriptEvaluateAsync(LuaCommands.ExpireWhenMissing, [key], [(long)expire.TotalMilliseconds]);
+    }
+
+    internal T ExecuteTransaction<T>(IDatabase database, Func<ITransaction, Task<T>> actionFactory, RedisKey key, TimeSpan? expire, bool onlyWhenMissing = false)
     {
         if (expire == null)
             throw new ArgumentNullException(nameof(expire));
 
         var transaction = database.CreateTransaction();
         var actionTask = actionFactory(transaction);
-        var expireTask = transaction.KeyExpireAsync(key, expire);
+        var expireTask = ApplyExpire(database, transaction, key, expire.Value, onlyWhenMissing);
 
         if (!transaction.Execute())
             throw new InvalidOperationException("Redis transaction could not be executed.");
@@ -248,14 +403,14 @@ public partial class RedisStoreProvider : IDataStoreProvider
         return actionResult;
     }
 
-    internal static void ExecuteTransaction(IDatabase database, Func<ITransaction, Task> actionFactory, RedisKey key, TimeSpan? expire)
+    internal void ExecuteTransaction(IDatabase database, Func<ITransaction, Task> actionFactory, RedisKey key, TimeSpan? expire, bool onlyWhenMissing = false)
     {
         if (expire == null)
             throw new ArgumentNullException(nameof(expire));
 
         var transaction = database.CreateTransaction();
         var actionTask = actionFactory(transaction);
-        var expireTask = transaction.KeyExpireAsync(key, expire);
+        var expireTask = ApplyExpire(database, transaction, key, expire.Value, onlyWhenMissing);
 
         if (!transaction.Execute())
             throw new InvalidOperationException("Redis transaction could not be executed.");
@@ -264,14 +419,14 @@ public partial class RedisStoreProvider : IDataStoreProvider
         expireTask.GetAwaiter().GetResult();
     }
 
-    internal static async Task<T> ExecuteTransactionAsync<T>(IDatabase database, Func<ITransaction, Task<T>> actionFactory, RedisKey key, TimeSpan? expire)
+    internal async Task<T> ExecuteTransactionAsync<T>(IDatabase database, Func<ITransaction, Task<T>> actionFactory, RedisKey key, TimeSpan? expire, bool onlyWhenMissing = false)
     {
         if (expire == null)
             throw new ArgumentNullException(nameof(expire));
 
         var transaction = database.CreateTransaction();
         var actionTask = actionFactory(transaction);
-        var expireTask = transaction.KeyExpireAsync(key, expire);
+        var expireTask = ApplyExpire(database, transaction, key, expire.Value, onlyWhenMissing);
 
         if (!await transaction.ExecuteAsync().ConfigureAwait(false))
             throw new InvalidOperationException("Redis transaction could not be executed.");
@@ -281,14 +436,14 @@ public partial class RedisStoreProvider : IDataStoreProvider
         return actionResult;
     }
 
-    internal static async Task ExecuteTransactionAsync(IDatabase database, Func<ITransaction, Task> actionFactory, RedisKey key, TimeSpan? expire)
+    internal async Task ExecuteTransactionAsync(IDatabase database, Func<ITransaction, Task> actionFactory, RedisKey key, TimeSpan? expire, bool onlyWhenMissing = false)
     {
         if (expire == null)
             throw new ArgumentNullException(nameof(expire));
 
         var transaction = database.CreateTransaction();
         var actionTask = actionFactory(transaction);
-        var expireTask = transaction.KeyExpireAsync(key, expire);
+        var expireTask = ApplyExpire(database, transaction, key, expire.Value, onlyWhenMissing);
 
         if (!await transaction.ExecuteAsync().ConfigureAwait(false))
             throw new InvalidOperationException("Redis transaction could not be executed.");
@@ -326,12 +481,38 @@ public partial class RedisStoreProvider : IDataStoreProvider
 
         _connectionManager?.Dispose();
 
+        _capabilities = null;
         _connectionManager = options.ConnectionMode switch
         {
             ConnectionMode.Shared => new SharedRedisConnectionManager(options),
             ConnectionMode.Pooled => new PooledRedisConnectionManager(options),
             _ => throw new ArgumentOutOfRangeException(nameof(options.ConnectionMode))
         };
+
+        ResolveCapabilitiesFromConnection();
+    }
+
+    /// <summary>
+    /// Asks the server for its capabilities during startup so the first operation does not pay for it.
+    /// A server that is briefly unavailable must not fail startup, so the capabilities stay unresolved
+    /// and are asked for again on first use.
+    /// </summary>
+    private void ResolveCapabilitiesFromConnection()
+    {
+        IRedisConnectionLease? lease = null;
+        try
+        {
+            lease = _connectionManager!.Acquire();
+            EnsureCapabilities(lease.Multiplexer);
+        }
+        catch (Exception)
+        {
+            // intentionally supressed
+        }
+        finally
+        {
+            lease?.Dispose();
+        }
     }
 
     public virtual Task InitializeAsync(ConnectionOptions options, IDataStoreProfiler? profiler)
@@ -382,14 +563,35 @@ public partial class RedisStoreProvider : IDataStoreProvider
         return await RedisCallAsync(async db => await db.KeyTimeToLiveAsync(key).ConfigureAwait(false)).ConfigureAwait(false);
     }
 
-    bool IDataStoreProvider.SetExpire(string key, TimeSpan expire)
+    bool IDataStoreProvider.SetExpire(string key, TimeSpan expire, bool onlyWhenMissing)
     {
-        return RedisCall(db => db.KeyExpire(key, expire));
+        if (!onlyWhenMissing)
+            return RedisCall(db => db.KeyExpire(key, expire));
+
+        return RedisCall(db => EnsureCapabilities(db.Multiplexer).SupportsExpireOptions
+            ? db.KeyExpire(key, expire, ExpireWhen.HasNoExpiry)
+            : AsExpireApplied(db.ScriptEvaluate(LuaCommands.ExpireWhenMissing, [key], [(long)expire.TotalMilliseconds])));
     }
 
-    async Task<bool> IDataStoreProvider.SetExpireAsync(string key, TimeSpan expire)
+    async Task<bool> IDataStoreProvider.SetExpireAsync(string key, TimeSpan expire, bool onlyWhenMissing)
     {
-        return await RedisCallAsync(async db => await db.KeyExpireAsync(key, expire).ConfigureAwait(false)).ConfigureAwait(false);
+        if (!onlyWhenMissing)
+            return await RedisCallAsync(async db => await db.KeyExpireAsync(key, expire).ConfigureAwait(false)).ConfigureAwait(false);
+
+        return await RedisCallAsync(async db =>
+        {
+            if (EnsureCapabilities(db.Multiplexer).SupportsExpireOptions)
+                return await db.KeyExpireAsync(key, expire, ExpireWhen.HasNoExpiry).ConfigureAwait(false);
+
+            return AsExpireApplied(
+                await db.ScriptEvaluateAsync(LuaCommands.ExpireWhenMissing, [key], [(long)expire.TotalMilliseconds])
+                    .ConfigureAwait(false));
+        }).ConfigureAwait(false);
+    }
+
+    private static bool AsExpireApplied(RedisResult result)
+    {
+        return !result.IsNull && (long)result == 1;
     }
 
     bool IDataStoreProvider.Remove(string key)

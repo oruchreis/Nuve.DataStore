@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.1.0] - 2026-08-04
+
+### Added
+- **Server capability detection.** `RedisStoreProvider` asks the connected server for its version, topology and feature set while initializing and caches the answer in `RedisServerCapabilities`, exposed through the `Capabilities` property. A server that cannot be reached during startup no longer fails initialization; the capabilities stay unresolved and are asked for again on first use. `ServerType` and `IsClustered` report how the endpoint presents itself, which separates a client side cluster from a single endpoint.
+- Conditional expiration now uses the native `PEXPIRE key ttl NX` on servers that support it (Redis 7.0 and later) and falls back to the equivalent script elsewhere, which keeps a deployment working across mixed environments such as Redis 7.x in production and KeyDB 6 in development. Until the capabilities are known the portable path is used, so an unreachable server degrades rather than breaks.
+- **Multi-key requests adapt to the topology.** Whether a single command may span several slots is measured during initialization by attempting exactly such a write, because the endpoint alone does not reveal it: a proxy in front of a sharded database looks standalone, and among those some accept a cross-slot write while others reject it. Where it is accepted, `KeyValueStore.Set(IDictionary)` and `Get(params string[])` keep issuing one `MSET`/`MGET` and stay atomic. Where it is not, the keys are grouped by slot and one request is sent per slot, so the call succeeds on Redis Cluster, on the OSS clustering policy and on proxies instead of failing with `CROSSSLOT`. Grouping keeps each slot's write atomic but not the call as a whole.
+
+### Changed
+- `IDataStoreProvider.SetExpire`/`SetExpireAsync` and the write methods of `IKeyValueStoreProvider`, `IDictionaryStoreProvider`, `IHashSetStoreProvider`, and `ILinkedListStoreProvider` take an optional `bool onlyWhenMissing` parameter that applies the expiration only to keys without a TTL. Servers before Redis 7.0 have no `EXPIRE ... NX`, so this is implemented with Lua scripts that also work on Codis and KeyDB.
+- **Set combinations over keys on different slots now explain themselves.** `HashSetStore` operations that combine the store with caller supplied keys (`DifferenceToHashSet`, `DifferenceToNewSet`, `IntersectionToHashSet`, `IntersectionToNewSet`, `UnionToHashSet`, `UnionToNewSet`, `MoveValue`) cannot be split per slot, because Redis has no way to combine sets across slots. On a server that refuses commands spanning slots they now fail with an `InvalidOperationException` that names each key with the slot it landed on and shows how to co-locate them with a shared hash tag, instead of surfacing a bare `CROSSSLOT` error.
+
+### Fixed
+- **`DefaultExpire` now always applies the initial TTL.** v2.0.8 tied the write-time expiration to `AutoPing`, so a store configured with `defaultExpire` but without `autoPing` produced keys with no TTL at all. `DefaultExpire` is once again applied on every write regardless of `AutoPing`.
+- **`AutoPing` is now purely a sliding-expiration switch.** While it is disabled no operation extends an existing TTL — reads leave it alone and writes apply the expiration only to keys that do not have one yet, so a key keeps expiring from its first write. While it is enabled every read and write slides the TTL back to `DefaultExpire`, as before. An explicit `Ping()` call always refreshes.
+- `KeyValueStore` writes no longer discard the remaining TTL. A plain Redis `SET` clears the expiration, which silently turned a write into an expiration reset; the remaining TTL is now preserved when `AutoPing` is disabled.
+- Mutation paths that unconditionally refreshed the TTL (`LinkedListStore` `AddAfter`/`AddBefore`/`Insert`/`RemoveAt`/`Remove`/`Trim`, `HashSetStore` `Remove`/`MoveValue`, multi-key `KeyValueStore.Set`) now honour `AutoPing` instead of always sliding the expiration.
+- **`HashSetStore` set operations no longer fail on a sharded deployment.** The value based `DifferenceWith`, `SymmetricDifferenceWith`, `IntersectionWith`, `UnionWith` and their variants stage the incoming values in a temporary key and then combine it with the store's master key. That temporary key hashed to a different slot, so `SDIFFSTORE` and `SUNIONSTORE` were rejected with `CROSSSLOT` on Redis Cluster, on the OSS clustering policy, and on proxied shard sets where those commands are not cross-slot capable. The temporary keys now carry the master key as a hash tag and therefore share its slot.
+
 ## [v2.0.10] - 2026-07-20
 
 ### Changed

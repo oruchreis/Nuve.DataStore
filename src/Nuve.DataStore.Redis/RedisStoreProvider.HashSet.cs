@@ -24,23 +24,23 @@ namespace Nuve.DataStore.Redis
             });
         }
 
-        long IHashSetStoreProvider.Add(string hashSetKey, TimeSpan? expire, params byte[][] values)
+        long IHashSetStoreProvider.Add(string hashSetKey, TimeSpan? expire, bool onlyWhenMissing, params byte[][] values)
         {
             return RedisCall(Db =>
             {
                 if (expire != null)
-                    return ExecuteTransaction(Db, tran => tran.SetAddAsync(hashSetKey, values.Select(item => (RedisValue)item).ToArray()), hashSetKey, expire);
+                    return ExecuteTransaction(Db, tran => tran.SetAddAsync(hashSetKey, values.Select(item => (RedisValue)item).ToArray()), hashSetKey, expire, onlyWhenMissing);
 
                 return Db.SetAdd(hashSetKey, values.Select(item => (RedisValue)item).ToArray());
             });
         }
 
-        async Task<long> IHashSetStoreProvider.AddAsync(string hashSetKey, TimeSpan? expire, params byte[][] values)
+        async Task<long> IHashSetStoreProvider.AddAsync(string hashSetKey, TimeSpan? expire, bool onlyWhenMissing, params byte[][] values)
         {
             return await RedisCallAsync(async Db =>
             {
                 if (expire != null)
-                    return await ExecuteTransactionAsync(Db, tran => tran.SetAddAsync(hashSetKey, values.Select(item => (RedisValue)item).ToArray()), hashSetKey, expire).ConfigureAwait(false);
+                    return await ExecuteTransactionAsync(Db, tran => tran.SetAddAsync(hashSetKey, values.Select(item => (RedisValue)item).ToArray()), hashSetKey, expire, onlyWhenMissing).ConfigureAwait(false);
 
                 return await Db.SetAddAsync(hashSetKey, values.Select(item => (RedisValue)item).ToArray()).ConfigureAwait(false);
             });
@@ -66,6 +66,7 @@ namespace Nuve.DataStore.Redis
         {
             return RedisCall(Db =>
             {
+                EnsureKeysShareOneSlot(Db, "Difference", [hashSetKey, .. compareHashSetKeys]);
                 var keys = new List<RedisKey> { hashSetKey };
                 keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
                 return new HashSet<byte[]>((Db.SetCombine(SetOperation.Difference, keys.ToArray())).Select(rv => (byte[])rv!));
@@ -76,6 +77,7 @@ namespace Nuve.DataStore.Redis
         {
             return await RedisCallAsync(async Db =>
             {
+                EnsureKeysShareOneSlot(Db, "Difference", [hashSetKey, .. compareHashSetKeys]);
                 var keys = new List<RedisKey> { hashSetKey };
                 keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
                 return new HashSet<byte[]>((await Db.SetCombineAsync(SetOperation.Difference, keys.ToArray())).Select(rv => (byte[])rv!));
@@ -86,6 +88,7 @@ namespace Nuve.DataStore.Redis
         {
             return RedisCall(Db =>
             {
+                EnsureKeysShareOneSlot(Db, "DifferenceToNewSet", [hashSetKey, newHashSetKey, .. compareHashSetKeys]);
                 var keys = new List<RedisKey> { hashSetKey };
                 keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
                 return Db.SetCombineAndStore(SetOperation.Difference, newHashSetKey, keys.ToArray());
@@ -96,6 +99,7 @@ namespace Nuve.DataStore.Redis
         {
             return await RedisCallAsync(async Db =>
             {
+                EnsureKeysShareOneSlot(Db, "DifferenceToNewSet", [hashSetKey, newHashSetKey, .. compareHashSetKeys]);
                 var keys = new List<RedisKey> { hashSetKey };
                 keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
                 return await Db.SetCombineAndStoreAsync(SetOperation.Difference, newHashSetKey, keys.ToArray());
@@ -106,6 +110,7 @@ namespace Nuve.DataStore.Redis
         {
             return RedisCall(Db =>
             {
+                EnsureKeysShareOneSlot(Db, "Intersection", [hashSetKey, .. compareHashSetKeys]);
                 var keys = new List<RedisKey> { hashSetKey };
                 keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
                 return new HashSet<byte[]>((Db.SetCombine(SetOperation.Intersect, keys.ToArray())).Select(rv => (byte[])rv!));
@@ -116,6 +121,7 @@ namespace Nuve.DataStore.Redis
         {
             return await RedisCallAsync(async Db =>
             {
+                EnsureKeysShareOneSlot(Db, "Intersection", [hashSetKey, .. compareHashSetKeys]);
                 var keys = new List<RedisKey> { hashSetKey };
                 keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
                 return new HashSet<byte[]>((await Db.SetCombineAsync(SetOperation.Intersect, keys.ToArray())).Select(rv => (byte[])rv!));
@@ -126,6 +132,7 @@ namespace Nuve.DataStore.Redis
         {
             return RedisCall(Db =>
             {
+                EnsureKeysShareOneSlot(Db, "IntersectionToNewSet", [hashSetKey, newHashSetKey, .. compareHashSetKeys]);
                 var keys = new List<RedisKey> { hashSetKey };
                 keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
                 return Db.SetCombineAndStore(SetOperation.Intersect, newHashSetKey, keys.ToArray());
@@ -136,6 +143,7 @@ namespace Nuve.DataStore.Redis
         {
             return await RedisCallAsync(async Db =>
             {
+                EnsureKeysShareOneSlot(Db, "IntersectionToNewSet", [hashSetKey, newHashSetKey, .. compareHashSetKeys]);
                 var keys = new List<RedisKey> { hashSetKey };
                 keys.AddRange(compareHashSetKeys.Select(item => (RedisKey)item));
                 return await Db.SetCombineAndStoreAsync(SetOperation.Intersect, newHashSetKey, keys.ToArray());
@@ -146,6 +154,7 @@ namespace Nuve.DataStore.Redis
         {
             return RedisCall(Db =>
             {
+                EnsureKeysShareOneSlot(Db, "Union", hashSetKeys);
                 return new HashSet<byte[]>((Db.SetCombine(SetOperation.Union,
                 hashSetKeys.Select(item => (RedisKey)item).ToArray())).Select(rv => (byte[])rv!));
             });
@@ -155,6 +164,7 @@ namespace Nuve.DataStore.Redis
         {
             return await RedisCallAsync(async Db =>
             {
+                EnsureKeysShareOneSlot(Db, "Union", hashSetKeys);
                 return new HashSet<byte[]>((await Db.SetCombineAsync(SetOperation.Union,
                 hashSetKeys.Select(item => (RedisKey)item).ToArray())).Select(rv => (byte[])rv!));
             });
@@ -164,6 +174,7 @@ namespace Nuve.DataStore.Redis
         {
             return RedisCall(Db =>
             {
+                EnsureKeysShareOneSlot(Db, "UnionToNewSet", [newHashSetKey, .. hashSetKeys]);
                 return Db.SetCombineAndStore(SetOperation.Union, newHashSetKey,
                 hashSetKeys.Select(item => (RedisKey)item).ToArray());
             });
@@ -173,6 +184,7 @@ namespace Nuve.DataStore.Redis
         {
             return await RedisCallAsync(async Db =>
             {
+                EnsureKeysShareOneSlot(Db, "UnionToNewSet", [newHashSetKey, .. hashSetKeys]);
                 return await Db.SetCombineAndStoreAsync(SetOperation.Union, newHashSetKey,
                 hashSetKeys.Select(item => (RedisKey)item).ToArray());
             });
@@ -214,6 +226,7 @@ namespace Nuve.DataStore.Redis
         {
             return RedisCall(Db =>
             {
+                EnsureKeysShareOneSlot(Db, "MoveValue", hashSetKey, destHashSetKey);
                 return Db.SetMove(hashSetKey, destHashSetKey, value);
             });
         }
@@ -222,6 +235,7 @@ namespace Nuve.DataStore.Redis
         {
             return await RedisCallAsync(async Db =>
             {
+                EnsureKeysShareOneSlot(Db, "MoveValue", hashSetKey, destHashSetKey);
                 return await Db.SetMoveAsync(hashSetKey, destHashSetKey, value);
             });
         }

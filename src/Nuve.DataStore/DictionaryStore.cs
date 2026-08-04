@@ -360,7 +360,7 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                var result = await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, key, AsValue(value), overwrite, AutoExpire));
+                var result = await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, key, AsValue(value), overwrite, AutoExpire, ExpireOnlyWhenMissing));
                 return result;
             }
         }
@@ -376,7 +376,7 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                var result = CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, key, AsValue(value), overwrite, AutoExpire));
+                var result = CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, key, AsValue(value), overwrite, AutoExpire, ExpireOnlyWhenMissing));
                 return result;
             }
         }
@@ -391,7 +391,7 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, MasterKey))
             {
-                await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, AsKeyValue(keyValues, serializeParallel, parallelOptions), AutoExpire));
+                await CheckAutoPing(async () => await _dictionaryStoreProvider.SetAsync(MasterKey, AsKeyValue(keyValues, serializeParallel, parallelOptions), AutoExpire, ExpireOnlyWhenMissing));
             }
         }
 
@@ -405,7 +405,7 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, MasterKey))
             {
-                CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, AsKeyValue(keyValues, serializeParallel, parallelOptions), AutoExpire));
+                CheckAutoPing(() => _dictionaryStoreProvider.Set(MasterKey, AsKeyValue(keyValues, serializeParallel, parallelOptions), AutoExpire, ExpireOnlyWhenMissing));
             }
         }
 
@@ -516,7 +516,7 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                var result = await CheckAutoPing(async () => await _dictionaryStoreProvider.IncrementAsync(MasterKey, key, value, AutoExpire));
+                var result = await CheckAutoPing(async () => await _dictionaryStoreProvider.IncrementAsync(MasterKey, key, value, AutoExpire, ExpireOnlyWhenMissing));
                 return result;
             }
         }
@@ -532,7 +532,7 @@ namespace Nuve.DataStore
         {
             using (new ProfileScope(this, key))
             {
-                var result = CheckAutoPing(() => _dictionaryStoreProvider.Increment(MasterKey, key, value, AutoExpire));
+                var result = CheckAutoPing(() => _dictionaryStoreProvider.Increment(MasterKey, key, value, AutoExpire, ExpireOnlyWhenMissing));
                 return result;
             }
         }

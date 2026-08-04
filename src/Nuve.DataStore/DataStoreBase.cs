@@ -77,13 +77,18 @@ public abstract class DataStoreBase
     public string NamespaceSeperator { get; }
 
     /// <summary>
-    /// The expiration time to apply atomically to write operations.
-    /// Returns <see cref="DefaultExpire"/> when <see cref="AutoPing"/> is enabled,
-    /// so each write atomically refreshes the TTL.
-    /// Returns <c>null</c> when <see cref="AutoPing"/> is disabled,
-    /// leaving TTL management to explicit <see cref="PingAsync"/> / <see cref="Ping"/> calls.
+    /// The expiration time to apply atomically to write operations,
+    /// or <c>null</c> when no <see cref="DefaultExpire"/> is configured.
+    /// The initial TTL is applied regardless of <see cref="AutoPing"/>;
+    /// whether an already expiring key gets extended is decided by <see cref="ExpireOnlyWhenMissing"/>.
     /// </summary>
-    protected TimeSpan? AutoExpire => AutoPing && DefaultExpire > TimeSpan.Zero ? DefaultExpire : null;
+    protected TimeSpan? AutoExpire => DefaultExpire > TimeSpan.Zero ? DefaultExpire : null;
+
+    /// <summary>
+    /// While <see cref="AutoPing"/> is disabled no operation may extend an existing TTL,
+    /// so the expiration is applied only to keys that do not have one yet.
+    /// </summary>
+    protected bool ExpireOnlyWhenMissing => !AutoPing;
 
     protected IDataStoreSerializer Serializer =>
         _serializerOverride ?? GetContext().Serializer;
@@ -102,15 +107,25 @@ public abstract class DataStoreBase
     /// </summary>
     /// <param name="key">The key to reset the expiration time for.</param>
     /// <returns>Returns a task that represents the asynchronous operation. The task result is a boolean value indicating whether the expiration time was successfully reset.</returns>
-    protected virtual async Task<bool> PingAsync(string key)
+    protected virtual Task<bool> PingAsync(string key)
+    {
+        return PingAsync(key, onlyWhenMissing: false);
+    }
+
+    /// <summary>
+    /// Resets the expiration time of a key to the default expiration time.
+    /// </summary>
+    /// <param name="key">The key to reset the expiration time for.</param>
+    /// <param name="onlyWhenMissing">When true, an already expiring key is left untouched and only a key without a TTL receives one.</param>
+    protected virtual async Task<bool> PingAsync(string key, bool onlyWhenMissing)
     {
         if (DefaultExpire == TimeSpan.Zero)
-            return await Task.FromResult(false).ConfigureAwait(false);
+            return false;
 
         using (new ProfileScope(this, key))
         {
-            var result = await Provider.SetExpireAsync(key, DefaultExpire).ConfigureAwait(false);
-            await Provider.SetExpireAsync(BuildFencingKey(key), DefaultExpire).ConfigureAwait(false);
+            var result = await Provider.SetExpireAsync(key, DefaultExpire, onlyWhenMissing).ConfigureAwait(false);
+            await Provider.SetExpireAsync(BuildFencingKey(key), DefaultExpire, onlyWhenMissing).ConfigureAwait(false);
             return result;
         }
     }
@@ -122,14 +137,54 @@ public abstract class DataStoreBase
     /// <returns>Returns a boolean value indicating whether the expiration time was successfully reset.</returns>
     protected virtual bool Ping(string key)
     {
+        return Ping(key, onlyWhenMissing: false);
+    }
+
+    /// <summary>
+    /// Resets the expiration time of a key to the default expiration time.
+    /// </summary>
+    /// <param name="key">The key to reset the expiration time for.</param>
+    /// <param name="onlyWhenMissing">When true, an already expiring key is left untouched and only a key without a TTL receives one.</param>
+    protected virtual bool Ping(string key, bool onlyWhenMissing)
+    {
         var defaultExpire = DefaultExpire;
         if (defaultExpire == TimeSpan.Zero)
             return false;
         using (new ProfileScope(this, key))
         {
-            var result = Provider.SetExpire(key, defaultExpire);
-            Provider.SetExpire(BuildFencingKey(key), defaultExpire);
+            var result = Provider.SetExpire(key, defaultExpire, onlyWhenMissing);
+            Provider.SetExpire(BuildFencingKey(key), defaultExpire, onlyWhenMissing);
             return result;
+        }
+    }
+
+    /// <summary>
+    /// Applies <see cref="DefaultExpire"/> to a single already namespaced key, honouring <see cref="AutoPing"/>.
+    /// Used by write paths that manage the TTL of one key without touching fencing counters.
+    /// </summary>
+    protected bool ApplyDefaultExpire(string namespacedKey)
+    {
+        if (DefaultExpire == TimeSpan.Zero)
+            return false;
+
+        using (new ProfileScope(this, namespacedKey))
+        {
+            return Provider.SetExpire(namespacedKey, DefaultExpire, ExpireOnlyWhenMissing);
+        }
+    }
+
+    /// <summary>
+    /// Applies <see cref="DefaultExpire"/> to a single already namespaced key, honouring <see cref="AutoPing"/>.
+    /// Used by write paths that manage the TTL of one key without touching fencing counters.
+    /// </summary>
+    protected async Task<bool> ApplyDefaultExpireAsync(string namespacedKey)
+    {
+        if (DefaultExpire == TimeSpan.Zero)
+            return false;
+
+        using (new ProfileScope(this, namespacedKey))
+        {
+            return await Provider.SetExpireAsync(namespacedKey, DefaultExpire, ExpireOnlyWhenMissing).ConfigureAwait(false);
         }
     }
 
@@ -178,6 +233,33 @@ public abstract class DataStoreBase
     protected virtual IDictionary<string, T> JoinWithRootNamespace<T>(IDictionary<string, T> pathsWithValues)
     {
         return pathsWithValues.ToDictionary(kv => JoinWithRootNamespace(kv.Key), kv => kv.Value);
+    }
+
+    /// <summary>
+    /// Builds a helper key that lands on the same cluster slot as <paramref name="key"/>, so a command
+    /// spanning both keys does not fail on a sharded deployment. A key that already carries a hash tag
+    /// keeps it, because appending a suffix leaves the tag untouched; a key without one becomes the tag
+    /// itself, which is the slot it already hashed to.
+    /// </summary>
+    [DebuggerStepThrough]
+    internal string BuildCoLocatedKey(string key, string suffix)
+    {
+        return HasHashTag(key)
+            ? $"{key}{suffix}"
+            : $"{{{key}}}{suffix}";
+    }
+
+    /// <summary>
+    /// A hash tag is the content between the first '{' and the first '}' that follows it,
+    /// and it only counts when that content is not empty.
+    /// </summary>
+    private static bool HasHashTag(string key)
+    {
+        var start = key.IndexOf('{');
+        if (start < 0)
+            return false;
+
+        return key.IndexOf('}', start + 1) > start + 1;
     }
 
     [DebuggerStepThrough]

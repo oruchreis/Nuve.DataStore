@@ -118,7 +118,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     {
         using (new ProfileScope(this, MasterKey))
         {
-            var result = await CheckAutoPing(async () => await _hashSetStoreProvider.AddAsync(MasterKey, AutoExpire, AsValues(values)));
+            var result = await CheckAutoPing(async () => await _hashSetStoreProvider.AddAsync(MasterKey, AutoExpire, ExpireOnlyWhenMissing, AsValues(values)));
             return result;
         }
     }
@@ -132,7 +132,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
     {
         using (new ProfileScope(this, MasterKey))
         {
-            var result = CheckAutoPing(() => _hashSetStoreProvider.Add(MasterKey, AutoExpire, AsValues(values)));
+            var result = CheckAutoPing(() => _hashSetStoreProvider.Add(MasterKey, AutoExpire, ExpireOnlyWhenMissing, AsValues(values)));
             return result;
         }
     }
@@ -173,9 +173,9 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
             return await CheckAutoPing(async () =>
             {
                 //todo: lock
-                var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
+                var tempKey = BuildCoLocatedKey(MasterKey, $"__temp_{Guid.NewGuid()}");
 
-                await _hashSetStoreProvider.AddAsync(tempKey, null, AsValues(values));
+                await _hashSetStoreProvider.AddAsync(tempKey, null, false, AsValues(values));
                 var result = await DifferenceToNewSetAsync(MasterKey, tempKey);
                 await Provider.RemoveAsync(tempKey);
                 return result;
@@ -195,9 +195,9 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
             return CheckAutoPing(() =>
             {
                 //todo: lock
-                var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
+                var tempKey = BuildCoLocatedKey(MasterKey, $"__temp_{Guid.NewGuid()}");
 
-                _hashSetStoreProvider.Add(tempKey, null, AsValues(values));
+                _hashSetStoreProvider.Add(tempKey, null, false, AsValues(values));
                 var result = DifferenceToNewSet(MasterKey, tempKey);
                 Provider.Remove(tempKey);
                 return result;
@@ -217,9 +217,9 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
             return await CheckAutoPing(async () =>
                           {
                               //todo: lock
-                              var tempKey1 = $"{MasterKey}__temp_{Guid.NewGuid()}_1";
-                              var tempKey2 = $"{MasterKey}__temp_{Guid.NewGuid()}_2";
-                              await _hashSetStoreProvider.AddAsync(tempKey1, null, AsValues(values));
+                              var tempKey1 = BuildCoLocatedKey(MasterKey, $"__temp_{Guid.NewGuid()}_1");
+                              var tempKey2 = BuildCoLocatedKey(MasterKey, $"__temp_{Guid.NewGuid()}_2");
+                              await _hashSetStoreProvider.AddAsync(tempKey1, null, false, AsValues(values));
                               //simetrik olduğu için ilk önce sağ tarafın yani tempe göre farkı alalım ve saklayalım.
                               await _hashSetStoreProvider.DifferenceToNewSetAsync(tempKey1, tempKey2, MasterKey);
                               //mevcut set'e farkını alalım ve saklayalım.
@@ -245,9 +245,9 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
             return CheckAutoPing(() =>
                           {
                               //todo: lock
-                              var tempKey1 = $"{MasterKey}__temp_{Guid.NewGuid()}_1";
-                              var tempKey2 = $"{MasterKey}__temp_{Guid.NewGuid()}_2";
-                              _hashSetStoreProvider.Add(tempKey1, null, AsValues(values));
+                              var tempKey1 = BuildCoLocatedKey(MasterKey, $"__temp_{Guid.NewGuid()}_1");
+                              var tempKey2 = BuildCoLocatedKey(MasterKey, $"__temp_{Guid.NewGuid()}_2");
+                              _hashSetStoreProvider.Add(tempKey1, null, false, AsValues(values));
                               //simetrik olduğu için ilk önce sağ tarafın yani tempe göre farkı alalım ve saklayalım.
                               _hashSetStoreProvider.DifferenceToNewSet(tempKey1, tempKey2, MasterKey);
                               //mevcut set'e farkını alalım ve saklayalım.
@@ -327,8 +327,8 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
             return await CheckAutoPing(async () =>
                                        {
                                            //todo: lock
-                                           var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
-                                           await _hashSetStoreProvider.AddAsync(tempKey, null, AsValues(values));
+                                           var tempKey = BuildCoLocatedKey(MasterKey, $"__temp_{Guid.NewGuid()}");
+                                           await _hashSetStoreProvider.AddAsync(tempKey, null, false, AsValues(values));
                                            var result = await IntersectToNewSetAsync(MasterKey, MasterKey, tempKey);
                                            await Provider.RemoveAsync(tempKey);
                                            return result;
@@ -348,8 +348,8 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
             return CheckAutoPing(() =>
                           {
                               //todo: lock
-                              var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
-                              _hashSetStoreProvider.Add(tempKey, null, AsValues(values));
+                              var tempKey = BuildCoLocatedKey(MasterKey, $"__temp_{Guid.NewGuid()}");
+                              _hashSetStoreProvider.Add(tempKey, null, false, AsValues(values));
                               var result = IntersectToNewSet(MasterKey, MasterKey, tempKey);
                               Provider.Remove(tempKey);
                               return result;
@@ -527,7 +527,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
             return await CheckAutoPing(async () =>
                                        {
                                            //todo: lock
-                                           var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
+                                           var tempKey = BuildCoLocatedKey(MasterKey, $"__temp_{Guid.NewGuid()}");
                                            //kesişimi bir yer kaydedelim.
                                            await _hashSetStoreProvider.IntersectionToNewSetAsync(otherHashSetKey, tempKey, MasterKey);
                                            //eğer kesişimin sayısı ile bizim sayımız eşitse alt kümedir.
@@ -550,7 +550,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
             return CheckAutoPing(() =>
                                  {
                                      //todo: lock
-                                     var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
+                                     var tempKey = BuildCoLocatedKey(MasterKey, $"__temp_{Guid.NewGuid()}");
                                      //kesişimi bir yer kaydedelim.
                                      _hashSetStoreProvider.IntersectionToNewSet(otherHashSetKey, tempKey, MasterKey);
                                      //eğer kesişimin sayısı ile bizim sayımız eşitse alt kümedir.
@@ -573,7 +573,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
             return await CheckAutoPing(async () =>
                                        {
                                            //todo: lock
-                                           var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
+                                           var tempKey = BuildCoLocatedKey(MasterKey, $"__temp_{Guid.NewGuid()}");
                                            //kesişimi bir yer kaydedelim.
                                            await _hashSetStoreProvider.IntersectionToNewSetAsync(MasterKey, tempKey, otherHashSetKey);
                                            //eğer kesişimin sayısı ile otherhash'in sayısı eşitse alt kümedir.
@@ -596,7 +596,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
             return CheckAutoPing(() =>
                                  {
                                      //todo: lock
-                                     var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
+                                     var tempKey = BuildCoLocatedKey(MasterKey, $"__temp_{Guid.NewGuid()}");
                                      //kesişimi bir yer kaydedelim.
                                      _hashSetStoreProvider.IntersectionToNewSet(MasterKey, tempKey, otherHashSetKey);
                                      //eğer kesişimin sayısı ile otherhash'in sayısı eşitse alt kümedir.
@@ -618,7 +618,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
         {
             return await CheckAutoPing(async () =>
                                        {
-                                           var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
+                                           var tempKey = BuildCoLocatedKey(MasterKey, $"__temp_{Guid.NewGuid()}");
                                            //kesişimi bir yer kaydedelim.
                                            await _hashSetStoreProvider.IntersectionToNewSetAsync(MasterKey, tempKey, otherHashSetKey);
                                            var result = await _hashSetStoreProvider.CountAsync(tempKey) > 0;
@@ -639,7 +639,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
         {
             return CheckAutoPing(() =>
                           {
-                              var tempKey = $"{MasterKey}__temp_{Guid.NewGuid()}";
+                              var tempKey = BuildCoLocatedKey(MasterKey, $"__temp_{Guid.NewGuid()}");
                               //kesişimi bir yer kaydedelim.
                               _hashSetStoreProvider.IntersectionToNewSet(MasterKey, tempKey, otherHashSetKey);
                               var result = _hashSetStoreProvider.Count(tempKey) > 0;
@@ -685,7 +685,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
         {
             var result = await CheckAutoPing(async () => await _hashSetStoreProvider.MoveValueAsync(MasterKey, destinationHashSetKey, AsValue(value)));
             if (result && DefaultExpire != TimeSpan.Zero)
-                await PingAsync();
+                await PingAsync(MasterKey, ExpireOnlyWhenMissing);
             return result;
         }
     }
@@ -702,7 +702,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
         {
             var result = CheckAutoPing(() => _hashSetStoreProvider.MoveValue(MasterKey, destinationHashSetKey, AsValue(value)));
             if (result && DefaultExpire != TimeSpan.Zero)
-                Ping();
+                Ping(MasterKey, ExpireOnlyWhenMissing);
             return result;
         }
     }
@@ -718,7 +718,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
         {
             var result = await CheckAutoPing(async () => await _hashSetStoreProvider.RemoveAsync(MasterKey, AsValues(values)));
             if (result > 0 && DefaultExpire != TimeSpan.Zero)
-                await PingAsync();
+                await PingAsync(MasterKey, ExpireOnlyWhenMissing);
             return result;
         }
     }
@@ -734,7 +734,7 @@ public sealed class HashSetStore<TValue> : DataStoreBase, ISet<TValue?>, IReadOn
         {
             var result = CheckAutoPing(() => _hashSetStoreProvider.Remove(MasterKey, AsValues(values)));
             if (result > 0 && DefaultExpire != TimeSpan.Zero)
-                Ping();
+                Ping(MasterKey, ExpireOnlyWhenMissing);
             return result;
         }
     }

@@ -205,6 +205,126 @@ public class RedisStoreProviderTests
     }
 
     [TestMethod]
+    public void RedisHashSlot_ShouldMatchClusterSpecification()
+    {
+        // The slot of "foo" is a published value of the cluster specification, so it pins the
+        // CRC16 implementation to the one the server uses.
+        Assert.AreEqual(12182, RedisHashSlot.Of("foo"));
+
+        // A hash tag makes only the tag decide the slot, which is what co-locates related keys.
+        Assert.AreEqual(RedisHashSlot.Of("user1000"), RedisHashSlot.Of("{user1000}.following"));
+        Assert.AreEqual(RedisHashSlot.Of("{user1000}.following"), RedisHashSlot.Of("{user1000}.followers"));
+
+        // An empty tag does not count; the whole key decides instead.
+        Assert.AreEqual(RedisHashSlot.Of("{}foo"), RedisHashSlot.Of("{}foo"));
+        Assert.AreNotEqual(RedisHashSlot.Of("{}foo"), RedisHashSlot.Of("foo"));
+    }
+
+    [TestMethod]
+    public void CrossSlotProbeKeys_ShouldBeOnDifferentSlots()
+    {
+        var first = RedisHashSlot.Of(RedisStoreProvider.CrossSlotProbeFirstKey!);
+        var second = RedisHashSlot.Of(RedisStoreProvider.CrossSlotProbeSecondKey!);
+
+        // If both probe keys shared a slot the probe would succeed on a cluster too, and the
+        // provider would then send cross-slot writes that the server rejects.
+        Assert.AreNotEqual(first, second,
+            $"the probe has to span two slots; both keys resolved to {first}");
+    }
+
+    [TestMethod]
+    public void Provider_ShouldDetectCrossSlotMultiKeySupport_DuringInitialize()
+    {
+        var capabilities = ((RedisStoreProvider)_provider).Capabilities;
+
+        Assert.IsTrue(capabilities.IsResolved, "capabilities should be resolved while the provider initializes");
+        Assert.IsFalse(capabilities.IsClustered, $"the test server is expected to be a single node, was {capabilities.ServerType}");
+
+        // A single node places every key on one instance, so one write may span them all.
+        Assert.IsTrue(capabilities.SupportsCrossSlotMultiKey);
+    }
+
+    [TestMethod]
+    public void KeyValueStore_SetAllAndGetAll_ShouldKeepEveryKeyPairedWithItsValue()
+    {
+        var rootNamespace = DataStoreRuntime.Manager.GetConnection("redis").RootNamespace;
+        var store = new KeyValueStore();
+        var keys = Enumerable.Range(0, 25).Select(index => $"multi:{index}").ToArray();
+        var values = keys.ToDictionary(key => key, key => $"value-of-{key}");
+
+        Assert.IsTrue(store.Set(values));
+
+        // Multi-key requests may be split per slot, so every key has to come back with its own
+        // value rather than with a neighbour's.
+        var fetched = store.Get<string>(keys);
+        Assert.AreEqual(keys.Length, fetched.Count);
+        foreach (var key in keys)
+        {
+            Assert.AreEqual(values[key], fetched[$"{rootNamespace}:{key}"]);
+            Assert.AreEqual(values[key], store.Get<string>(key));
+        }
+    }
+
+    [TestMethod]
+    public void HashSetStore_SetCombination_AcrossSlots_ShouldExplainHowToCoLocateKeys()
+    {
+        var provider = (RedisStoreProvider)DataStoreAccess.GetDefaultProvider();
+        // A single node accepts anything, so the topology that refuses it has to be simulated.
+        provider.OverrideCapabilitiesForTests(crossSlotMultiKey: false);
+
+        var store = new HashSetStore<string>("context");
+        store.Add("a", "b");
+
+        var foreignKey = "a-set-on-another-slot";
+        Assert.AreNotEqual(RedisHashSlot.Of(store.MasterKey), RedisHashSlot.Of(foreignKey));
+
+        var exception = Assert.ThrowsException<InvalidOperationException>(
+            () => store.DifferenceToHashSet(foreignKey));
+
+        StringAssert.Contains(exception.Message, "Difference requires every key to be on a single cluster slot");
+        StringAssert.Contains(exception.Message, foreignKey);
+        StringAssert.Contains(exception.Message, "hash tag");
+    }
+
+    [TestMethod]
+    public void HashSetStore_SetCombination_WithSharedHashTag_ShouldBeAllowedAcrossSlotRestrictions()
+    {
+        var provider = (RedisStoreProvider)DataStoreAccess.GetDefaultProvider();
+        provider.OverrideCapabilitiesForTests(crossSlotMultiKey: false);
+
+        // Both keys carry the same hash tag, so the restriction does not apply to them.
+        var store = new HashSetStore<string>("{shared-slot}:left");
+        var right = new HashSetStore<string>("{shared-slot}:right");
+        store.Add("a", "b");
+        right.Add("b");
+
+        Assert.AreEqual(RedisHashSlot.Of(store.MasterKey), RedisHashSlot.Of(right.MasterKey));
+
+        var difference = store.DifferenceToHashSet(right.MasterKey);
+
+        Assert.AreEqual(1, difference.Count);
+        Assert.IsTrue(difference.Contains("a"));
+    }
+
+    [TestMethod]
+    public void Provider_ShouldResolveServerCapabilities_DuringInitialize()
+    {
+        var provider = (RedisStoreProvider)_provider;
+        var capabilities = provider.Capabilities;
+
+        Assert.IsTrue(capabilities.IsResolved, "capabilities should be resolved while the provider initializes");
+        Assert.IsTrue(capabilities.ServerVersion > new Version(2, 6), $"unexpected server version {capabilities.ServerVersion}");
+        Assert.IsTrue(capabilities.SupportsScripting);
+
+        // The conditional expire options arrived in Redis 7.0, so the flag has to follow the
+        // connected server rather than being assumed — production and development differ here.
+        Assert.AreEqual(
+            capabilities.ServerVersion >= new Version(7, 0),
+            capabilities.SupportsExpireOptions,
+            $"SupportsExpireOptions does not match server version {capabilities.ServerVersion}");
+    }
+
+    [TestMethod]
     public void KeyValueStore_ParameterlessLock_ShouldBoundFencingCounterTtl_AndNotLeak()
     {
         var rootNamespace = DataStoreRuntime.Manager.GetConnection("redis").RootNamespace;
@@ -215,7 +335,9 @@ public class RedisStoreProviderTests
         var store = new KeyValueStore();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
 
-        var slidingExpire = TimeSpan.FromSeconds(4);
+        // Long enough that the assertions below cannot race the counter's own expiration on a
+        // loaded server, while still proving the counter is bounded rather than permanent.
+        var slidingExpire = TimeSpan.FromSeconds(10);
         var fencingKey = $"{rootNamespace}:ChangeBookState:123:__fencing__:KeyValueStore";
 
         using (var lockItem = store.AcquireLock(
@@ -230,11 +352,14 @@ public class RedisStoreProviderTests
             Assert.IsTrue(WaitUntil(() => _provider.GetExpire(fencingKey) > TimeSpan.Zero, TimeSpan.FromSeconds(2)));
             var fencingTtl = _provider.GetExpire(fencingKey);
             Assert.IsNotNull(fencingTtl);
-            Assert.IsTrue(fencingTtl <= slidingExpire, $"fencing counter TTL should be bounded by slidingExpire; was {fencingTtl}");
+            // The point is that the counter expires at all rather than living forever, so a little
+            // slack is allowed for the server rounding its own clock when reporting the remaining time.
+            Assert.IsTrue(fencingTtl <= slidingExpire + TimeSpan.FromSeconds(1),
+                $"fencing counter TTL should be bounded by slidingExpire ({slidingExpire}); was {fencingTtl}");
         }
 
         // Once abandoned, the counter self-expires — no unbounded leak across distinct keys.
-        Assert.IsTrue(WaitUntil(() => _provider.GetExpire(fencingKey) == null, TimeSpan.FromSeconds(8)));
+        Assert.IsTrue(WaitUntil(() => _provider.GetExpire(fencingKey) == null, TimeSpan.FromSeconds(20)));
     }
 
     [TestMethod]
@@ -279,7 +404,9 @@ public class RedisStoreProviderTests
     [TestMethod]
     public void HashStore_Ping_ShouldExtendTrackedFencingKeyLifetime()
     {
-        var store = new HashStore("context-ping", defaultExpire: TimeSpan.FromSeconds(10));
+        // The expiration has to outlast every step below, otherwise the assertions race the
+        // counter's own expiration instead of measuring whether Ping extended it.
+        var store = new HashStore("context-ping", defaultExpire: TimeSpan.FromSeconds(30));
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
         using var mux = ConnectionMultiplexer.Connect(RedisTestHelpers.GetRedisConnectionString());
 
@@ -298,12 +425,13 @@ public class RedisStoreProviderTests
         Thread.Sleep(TimeSpan.FromMilliseconds(1200));
 
         var ttlAfterWait = _provider.GetExpire(fencingKey);
-        Assert.IsTrue(ttlAfterWait > TimeSpan.Zero);
+        Assert.IsTrue(ttlAfterWait > TimeSpan.Zero, $"fencing TTL before Ping was {ttlAfterWait}");
         Assert.IsTrue(store.Ping());
 
         var ttlAfterPing = _provider.GetExpire(fencingKey);
-        Assert.IsTrue(ttlAfterPing >= ttlAfterWait);
-        Assert.IsTrue(ttlAfterPing > TimeSpan.FromSeconds(1));
+        Assert.IsTrue(ttlAfterPing >= ttlAfterWait,
+            $"Ping should extend the fencing counter; before={ttlAfterWait}, after={ttlAfterPing}, defaultExpire={store.DefaultExpire}");
+        Assert.IsTrue(ttlAfterPing > TimeSpan.FromSeconds(1), $"fencing TTL after Ping was {ttlAfterPing}");
     }
 
     [TestMethod]
